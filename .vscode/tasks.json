@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "Compilar Projeto Raylib",
+            "command": "C:\\msys64\\ucrt64\\bin\\g++.exe",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "${workspaceFolder}/src/*.cpp", // Compila tudo na pasta src
+                "-o",
+                "${workspaceFolder}/Observador.exe",
+                "-I", "${workspaceFolder}/include",
+                "-I", "C:/raylib/raylib/src",     // Mude para o seu caminho
+                "-L", "C:/raylib/raylib/src",        // Mude para o seu caminho
+                "-lraylib",
+                "-lopengl32",
+                "-lgdi32",
+                "-lwinmm"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
