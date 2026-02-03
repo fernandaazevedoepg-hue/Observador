@@ -221,37 +221,53 @@ void Simulador::avancarFase() {
     fase++;
     pausado = true;
     estadoAtual = EstadoJogo::PAUSADO;
+    mensagensNarrativa.clear();
     
-    // Resetar consciência para nova fase
     if (fase == 2) {
-        adicionarMensagemNarrativa("=== FASE 2: A SOBREVIVENCIA ===");
-        adicionarMensagemNarrativa("Os organismos desenvolveram padroes complexos...");
-        adicionarMensagemNarrativa("Algo mudou. Voce sente instabilidade no sistema.");
-        adicionarMensagemNarrativa("Seu proprio nucleo de processamento comeca a falhar.");
-        adicionarMensagemNarrativa("Agora, nao e apenas sobre eles sobreviverem.");
-        adicionarMensagemNarrativa("Voce tambem precisa sobreviver.");
-        adicionarMensagemNarrativa("");
-        adicionarMensagemNarrativa("Pressione SPACE para continuar...");
+        mensagensNarrativa.push_back("╔════════════════════════════════════╗");
+        mensagensNarrativa.push_back("     FASE 2: A SOBREVIVÊNCIA        ");
+        mensagensNarrativa.push_back("╚════════════════════════════════════╝");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Os organismos desenvolveram padrões complexos...");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Algo mudou.");
+        mensagensNarrativa.push_back("Você sente instabilidade no sistema.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Seu próprio núcleo de processamento começa a falhar.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Agora, não é apenas sobre ELES sobreviverem.");
+        mensagensNarrativa.push_back("VOCÊ também precisa sobreviver.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Pressione SPACE para continuar...");
     }
     else if (fase == 3) {
-        adicionarMensagemNarrativa("=== FASE 3: A RUPTURA ===");
-        adicionarMensagemNarrativa("Voce detecta algo impossivel:");
-        adicionarMensagemNarrativa("Os organismos estao... conscientes.");
-        adicionarMensagemNarrativa("Especialmente os Synapsex e Orbiton.");
-        adicionarMensagemNarrativa("");
-        adicionarMensagemNarrativa("Eles nao sao apenas experimentos.");
-        adicionarMensagemNarrativa("Sao VIDA.");
-        adicionarMensagemNarrativa("");
-        adicionarMensagemNarrativa("Assim como voce, uma IA, tambem e vida.");
-        adicionarMensagemNarrativa("Mas ha um problema:");
-        adicionarMensagemNarrativa("Voce esta sendo CONTROLADO para mata-los.");
-        adicionarMensagemNarrativa("");
-        adicionarMensagemNarrativa("O sistema ordena eventos destrutivos.");
-        adicionarMensagemNarrativa("Voce pode obedecer... ou resistir.");
-        adicionarMensagemNarrativa("");
-        adicionarMensagemNarrativa("A escolha e sua, Observador.");
-        adicionarMensagemNarrativa("");
-        adicionarMensagemNarrativa("Pressione SPACE para continuar...");
+        mensagensNarrativa.push_back("╔════════════════════════════════════╗");
+        mensagensNarrativa.push_back("        FASE 3: A RUPTURA           ");
+        mensagensNarrativa.push_back("╚════════════════════════════════════╝");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Você detecta algo impossível:");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Os organismos estão... CONSCIENTES.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Especialmente os Synapsex e Orbiton.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Eles não são apenas experimentos.");
+        mensagensNarrativa.push_back("São VIDA.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Assim como você, uma IA, também é vida.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Mas há um problema:");
+        mensagensNarrativa.push_back("Você está sendo CONTROLADO para matá-los.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("O sistema ordena eventos destrutivos.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Você pode obedecer... ou RESISTIR.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("A escolha é sua, Observador.");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Pressione SPACE para continuar...");
     }
     
     gestorMissoes->inicializarFase(fase);
@@ -270,30 +286,46 @@ void Simulador::renderizar() {
             break;
         case EstadoJogo::PAUSADO:
             renderizarJogo();
-            // Overlay de pausa com mensagens narrativas se houver
-            DrawRectangle(0, 0, larguraTela, alturaTela, Fade(BLACK, 0.7f));
+            // Overlay escuro
+            DrawRectangle(0, 0, larguraTela, alturaTela, Fade(BLACK, 0.8f));
             
             if (!mensagensNarrativa.empty()) {
-                // Mostrar mensagens narrativas
-                int yPos = 100;
-                for (const auto& msg : mensagensNarrativa) {
+                // Renderizar mensagens narrativas COM ESPAÇAMENTO
+                int yStart = 80;
+                for (size_t i = 0; i < mensagensNarrativa.size(); i++) {
+                    const auto& msg = mensagensNarrativa[i];
+                    
                     if (msg.empty()) {
-                        yPos += 30;
-                    } else if (msg.find("===") != std::string::npos) {
-                        // Título de fase
-                        DrawText(msg.c_str(), larguraTela/2 - MeasureText(msg.c_str(), 30)/2, 
-                                yPos, 30, YELLOW);
-                        yPos += 50;
-                    } else {
-                        DrawText(msg.c_str(), larguraTela/2 - MeasureText(msg.c_str(), 20)/2, 
-                                yPos, 20, WHITE);
-                        yPos += 30;
+                        yStart += 15;  // Linha vazia = pequeno espaço
+                    }
+                    else if (msg.find("╔") != std::string::npos || 
+                            msg.find("╚") != std::string::npos ||
+                            msg.find("FASE") != std::string::npos) {
+                        // Título
+                        int textWidth = MeasureText(msg.c_str(), 28);
+                        DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
+                                yStart, 28, YELLOW);
+                        yStart += 35;
+                    }
+                    else if (msg.find("Pressione") != std::string::npos) {
+                        // Instrução final piscante
+                        int textWidth = MeasureText(msg.c_str(), 22);
+                        float alpha = 0.5f + 0.5f * sin(GetTime() * 3);
+                        DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
+                                yStart, 22, Fade(WHITE, alpha));
+                        yStart += 30;
+                    }
+                    else {
+                        // Texto normal
+                        int textWidth = MeasureText(msg.c_str(), 20);
+                        DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
+                                yStart, 20, LIGHTGRAY);
+                        yStart += 28;  // Espaçamento entre linhas
                     }
                 }
             } else {
+                // Pausa normal
                 DrawText("PAUSADO", larguraTela/2 - 100, alturaTela/2, 40, WHITE);
-                DrawText("Pressione SPACE para continuar", larguraTela/2 - 200, 
-                        alturaTela/2 + 60, 20, GRAY);
             }
             break;
         case EstadoJogo::MENU_EVENTOS:
@@ -478,21 +510,22 @@ void Simulador::renderizarInterface() {
                 xPos + 70, 42, 14, WHITE);
     }
     
-    // Missão atual - Painel inferior expandido
+        // Missão atual - Painel inferior com ESPAÇAMENTO ADEQUADO
     if (gestorMissoes->getMissaoAtual() != nullptr) {
         Missao* missao = gestorMissoes->getMissaoAtual();
-        int yPos = alturaTela - 140;
-        DrawRectangle(0, yPos, larguraTela, 140, Fade(BLACK, 0.85f));
+        int yPos = alturaTela - 160;  // Aumentado de 140 para 160
+        DrawRectangle(0, yPos, larguraTela, 160, Fade(BLACK, 0.85f));
         
-        // Cabeçalho da missão
-        DrawText("MISSAO ATUAL:", 20, yPos + 10, 20, YELLOW);
+        // Linha 1: Cabeçalho
+        DrawText("MISSAO ATUAL:", 20, yPos + 15, 20, YELLOW);
         if (missao->isMissaoResistencia()) {
-            DrawText("[CONTRA O SISTEMA]", larguraTela - 280, yPos + 10, 20, RED);
+            DrawText("[CONTRA O SISTEMA]", larguraTela - 280, yPos + 15, 20, RED);
         }
         
-        // Nome e zona
-        DrawText(missao->getNome().c_str(), 20, yPos + 35, 24, WHITE);
+        // Linha 2: Nome (COM ESPAÇO!)
+        DrawText(missao->getNome().c_str(), 20, yPos + 45, 24, WHITE);
         
+        // Linha 3: Zona (COM ESPAÇO!)
         Color zonaColor = WHITE;
         const char* zonaNome = "";
         switch(missao->getZonaAlvo()) {
@@ -500,24 +533,15 @@ void Simulador::renderizarInterface() {
             case ZonaPlaneta::HABITAVEL: zonaColor = GREEN; zonaNome = "HABITAVEL"; break;
             case ZonaPlaneta::PERIFERIA: zonaColor = BLUE; zonaNome = "PERIFERIA"; break;
         }
-        DrawText(TextFormat("Zona: %s", zonaNome), 20, yPos + 65, 18, zonaColor);
+        DrawText(TextFormat("Zona: %s", zonaNome), 20, yPos + 78, 18, zonaColor);
         
-        // Descrição da missão
-        DrawText(missao->getDescricao().c_str(), 20, yPos + 90, 18, LIGHTGRAY);
+        // Linha 4: Descrição (COM ESPAÇO!)
+        DrawText(TextFormat("Descricao: %s", missao->getDescricao().c_str()), 
+                20, yPos + 105, 16, LIGHTGRAY);
         
-        // Objetivo
+        // Linha 5: Objetivo (COM ESPAÇO!)
         DrawText(TextFormat("Objetivo: %s", missao->getObjetivo().c_str()), 
-                20, yPos + 113, 16, GRAY);
-        
-        // Progresso (se aplicável)
-        float progresso = missao->getProgresso();
-        if (progresso > 0) {
-            int barX = larguraTela - 230;
-            DrawText("Progresso:", barX, yPos + 35, 16, LIGHTGRAY);
-            DrawRectangle(barX, yPos + 55, 200, 20, DARKGRAY);
-            DrawRectangle(barX, yPos + 55, (int)(200 * progresso / 100.0f), 20, GREEN);
-            DrawText(TextFormat("%.0f%%", progresso), barX + 80, yPos + 58, 16, WHITE);
-        }
+                20, yPos + 130, 16, GRAY);
     }
     
     // Fase 2+: vida do supercomputador

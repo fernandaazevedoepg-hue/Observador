@@ -148,7 +148,7 @@ void Populacao::inicializarPopulacao(ZonaPlaneta zona, int quantidade) {
                 raio = 150 + (rand() % 100);
                 break;
             case ZonaPlaneta::PERIFERIA:
-                raio = 300 + (rand() % 100);
+                raio = 300 + (rand() % 100);  // IMPORTANTE: DEVE TER ISTO
                 break;
         }
         

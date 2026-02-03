@@ -94,11 +94,11 @@ void Ambiente::alterarRecursos(float delta) {
 void Ambiente::aplicarEfeitosEvento() {
     switch(eventoAtual) {
         case TipoEvento::SOBRECARGA_TERMICA:
-            temperatura = temperaturaBase + 0.3f;
+            temperatura = temperaturaBase + 0.5f;
             break;
             
         case TipoEvento::ESCASSEZ_ENERGIA:
-            nivelRecursos = nivelRecursosBase * 0.3f;
+            nivelRecursos = nivelRecursosBase * 0.1f;
             break;
             
         case TipoEvento::ESTABILIDADE_TEMPORARIA:
@@ -120,6 +120,8 @@ void Ambiente::aplicarEfeitosEvento() {
                 temperatura = 1.0f;
             else if (zona == ZonaPlaneta::PERIFERIA)
                 temperatura = 0.0f;
+            else
+                temperatura = temperaturaBase +0.4f;
             break;
             
         default:

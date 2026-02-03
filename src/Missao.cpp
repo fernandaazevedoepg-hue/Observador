@@ -119,18 +119,28 @@ void Missao::atualizar(float deltaTime, const Populacao& pop, const Ambiente& am
 bool Missao::verificarConclusao(const Populacao& pop, const Ambiente& ambiente) {
     switch(tipo) {
         case TipoMissao::TESTE_RESISTENCIA:
-            return pop.getTamanho() >= objetivoNumerico;
+            // Só completa se evento terminou E tem 5+ organismos
+            if (ambiente.getEventoAtual() == TipoEvento::NENHUM && 
+                tempoDecorrido > 30.0f && 
+                pop.getTamanho() >= 5) {
+                return true;
+            }
+            return false;
             
         case TipoMissao::EVOLUCAO_ACELERADA:
-            return tempoDecorrido >= tempoObjetivo;
+            return tempoDecorrido >= 60.0f;
             
         case TipoMissao::EQUILIBRIO_PERFEITO:
-            return tempoDecorrido >= tempoObjetivo && pop.getTamanho() > 15;
+            return tempoDecorrido >= 300.0f && pop.getTamanho() > 15;
             
         case TipoMissao::SIMBIOSE:
-            return pop.getTamanho() >= objetivoNumerico;
+            return pop.getTamanho() >= 20;
+            
+        case TipoMissao::SELECAO_NATURAL:
+            return pop.getTamanho() <= 10 && tempoDecorrido > 30.0f;
             
         default:
+            // Outras missões: tempo mínimo de 30s
             return tempoDecorrido >= 30.0f;
     }
 }

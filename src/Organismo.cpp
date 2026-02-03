@@ -178,8 +178,8 @@ void Organismo::atualizar(float deltaTime, float temperaturaZona, float recursos
     
     // Efeito da temperatura
     float diferencaTermica = std::abs(temperaturaZona - resistenciaTermica);
-    if (diferencaTermica > 0.3f) {
-        consumirEnergia(diferencaTermica * 5.0f * deltaTime);
+    if (diferencaTermica > 0.2f) {
+        consumirEnergia(diferencaTermica * 15.0f * deltaTime);
     }
     
     // Absorção de recursos
