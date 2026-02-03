@@ -1,26 +1,156 @@
+# 🎮 Versão 1.2 - Melhorias Visuais e de Gameplay
 
+## ✨ Novidades e Correções
 
-### Executar:
+### 🎨 Melhorias Visuais
 
-./Observador
+#### Diferenciação de Organismos
+- **Plantas** agora são representadas por **quadrados/retângulos**
+- **Reagentes** continuam **circulares** mas com cauda de movimento
+- Efeitos visuais únicos por tipo:
+  - **Pyrosynth**: Aura de fogo (laranja)
+  - **Ignivar**: Energia instável pulsante
+  - **Lumivine**: Brilho verde expansivo
+  - **Synapsex**: Pulso de consciência
+  - **Cryomoss**: Cristais de gelo ao redor
 
-## Controles
+#### Tela Inicial Renovada
+- Fonte maior e mais legível
+- Texto centralizado
+- História mais clara e envolvente
+- Animação de pulsação no "Pressione ENTER"
+- Fundo estrelado melhorado (200 estrelas com brilho variado)
 
-| Tecla |            Ação                |
-|-------|--------------------------------|
-| SPACE | Pausar/Continuar               |
-|  +/-  |Acelerar/Desacelerar            |
-|   1   | Sobrecarga Termica (Nucleo)    |  
-|   2   | Escassez de Energia (Periferia)|
-|   3   | Estabilidade (Habitavel)       |
-|   4   | Radiacao Intensa (Nucleo)      |
-|   5   | Tempestade Gelida (Periferia)  |
-|   6   | Abundancia (Habitavel)         |
-|   S   | Guardar Jogo                   |
-|   L   | Carregar Jogo                  |
-|  ESC  | Sair                           |
+#### Interface de Jogo
+- **Painel superior expandido** (100px altura)
+- **Seção de Eventos Ativos** mostrando:
+  - Qual zona está com evento
+  - Nome do evento
+  - Tempo restante
+- **Painel de Missões expandido** (140px altura) com:
+  - Nome da missão em destaque
+  - Zona alvo com cor correspondente
+  - Descrição completa
+  - Objetivo detalhado
+  - Barra de progresso visual
+  - Indicador de missão de resistência
 
+### 🎯 Sistema de Missões
 
+#### Transição de Fases Corrigida
+- **Fase 1 → 2**: Quando consciência das 3 zonas = 150
+- **Fase 2 → 3**: Quando **TODAS** as missões da Fase 2 forem completadas
+- Não avança apenas com metade das missões
+
+#### Narrativa Entre Fases
+- **Tela de pausa narrativa** ao trocar de fase
+- **Fase 2**: Texto explicativo sobre a sobrevivência do supercomputador
+- **Fase 3**: Revelação sobre consciência dos organismos e quebra da quarta parede
+- Mensagens centralizadas e formatadas
+- Pressione SPACE para continuar após ler
+
+#### Feedback de Missões
+- **Tela de conclusão** ao completar missão:
+  - "MISSÃO COMPLETADA"
+  - Nome da missão
+  - Pontos ganhos
+  - Progresso total (X/Y missões)
+- **Tela de falha** se missão falhar
+- Jogo pausa automaticamente para você ler
+
+### 🌍 Correções de Bugs
+
+#### Periferia sem Organismos
+- ✅ **CORRIGIDO**: Periferia agora inicia com 12 organismos
+- Distribuição balanceada de plantas e reagentes
+
+#### Eventos Não Funcionando
+- ✅ **CORRIGIDO**: Todos os 6 eventos agora funcionam corretamente
+- Eventos adicionais mapeados:
+  - **[D]** Radiação Intensa
+  - **[F]** Temperatura Extrema
+
+#### Mensagens de Eventos
+- ✅ **CORRIGIDO**: Agora mostra claramente:
+  - Qual zona tem evento ativo
+  - Nome do evento
+  - Tempo restante (em segundos)
+- Seção dedicada no topo da tela
+
+#### Barra de Consciência
+- ✅ **CORRIGIDO**: Barra só aparece na **Fase 1**
+- Escondida automaticamente a partir da Fase 2
+
+### 📋 Menu de Eventos Melhorado
+
+- Fonte maior e mais legível
+- Indicadores visuais claros:
+  - Zona selecionada: `<--`
+  - Evento selecionado: `<--` em laranja
+- Descrição de cada evento:
+  - "Aumenta temperatura drasticamente"
+  - "Reduz recursos disponíveis"
+  - etc.
+- Cores corretas (zona selecionada destaca em vermelho/verde/azul)
+- Aviso se nenhum evento foi selecionado
+
+### 🎨 Outras Melhorias
+
+- **Fundo estrelado dinâmico** com variação de brilho
+- **Texto "PAUSADO"** mais visível quando o jogo está pausado
+- **Mensagens narrativas** em tela cheia quando há transições
+- **Cores mais vibrantes** em toda interface
+- **Fontes maiores** para melhor legibilidade
+
+## 🎮 Como Jogar (Lembretes)
+
+### Controles Básicos
+- **ENTER**: Iniciar jogo / Continuar após pausa narrativa
+- **SPACE**: Pausar/Despausar
+- **E**: Abrir menu de eventos
+- **↑/↓**: Controlar velocidade da simulação
+- **ESC**: Voltar de menus
+
+### Menu de Eventos
+1. Pressione **E** para abrir
+2. Selecione zona: **1** (Núcleo), **2** (Habitável), **3** (Periferia)
+3. Selecione evento: **Q/W/A/S/D/F**
+4. Pressione **ENTER** para ativar
+5. Veja o evento acontecer em tempo real!
+
+### Progressão
+- **Fase 1**: Complete missões e aumente consciência
+- **Fase 2**: Gerencie vida do supercomputador + missões
+- **Fase 3**: Escolha entre obedecer ou resistir
+
+## 📊 Resumo das Melhorias
+
+| Categoria | Antes | Depois |
+|-----------|-------|--------|
+| **Organismos** | Todos círculos iguais | Plantas quadradas, reagentes circulares + efeitos |
+| **Eventos** | Sem feedback visual | Painel dedicado com tempo restante |
+| **Missões** | Só nome | Nome + descrição + objetivo + progresso |
+| **Transição Fases** | Sem narrativa | Tela cheia com história |
+| **Tela Inicial** | Texto pequeno | Fonte grande, centralizada, animada |
+| **Periferia** | 10 organismos | 12 organismos (mais balanceado) |
+| **Consciência** | Sempre visível | Só Fase 1 |
+
+## 🚀 Próximos Passos Sugeridos
+
+Para continuar melhorando:
+1. ✅ Sons e música de fundo
+2. ✅ Partículas visuais nos eventos
+3. ✅ Zoom/pan da câmera
+4. ✅ Tutorial interativo
+5. ✅ Mais tipos de organismos
+
+---
+
+**Versão**: 1.2  
+**Data**: Atualização de melhorias visuais  
+**Compatibilidade**: 100% com versão anterior (salvamentos compatíveis)
+
+Divirta-se observando a evolução! 🌌
 
 ## Contexto
 

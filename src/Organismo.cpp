@@ -2,15 +2,51 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <raylib.h>
+#include <map>
 
-Organismo::Organismo(TipoOrganismo t, ZonaPlaneta z, float angulo, float raio) 
-    : tipo(t), zona(z), anguloOrbital(angulo), raioOrbital(raio), 
-      vivo(true), idade(0), ciclosVida(0), ciclosReproducao(0) {
+using std::sin;
+using std::cos;
+
+
+static std::map<TipoOrganismo, const char*> caminhosTexturas = {
+    { TipoOrganismo::PYROSYNTH, "assets/images/Pyrosynth_nucleo.png" },
+    { TipoOrganismo::RUBRAFLORA, "assets/images/Rubraflora_nucleo.png" },
+    { TipoOrganismo::IGNIVAR, "assets/images/Ignivar_nucleo.png" },
+    { TipoOrganismo::VOLTREX, "assets/images/Voltrex_nucleo.png" },
+
+    { TipoOrganismo::LUMIVINE, "assets/images/Lumivine_za.png" },
+    { TipoOrganismo::AEROFLORA, "assets/images/Aeroflora_za.png" },
+    { TipoOrganismo::ORBITON, "assets/images/Orbiton_za.png" },
+    { TipoOrganismo::SYNAPSEX, "assets/images/Synapsex_za.png" },
+
+    { TipoOrganismo::CRYOMOSS, "assets/images/Cryomoss_periferia.png" },
+    { TipoOrganismo::GELIBLOOM, "assets/images/Gelibloom_periferia.png" },
+    { TipoOrganismo::NULLWALKER, "assets/images/Nullwalker_za.png" },
+    { TipoOrganismo::HUSKLING, "assets/images/Huskling_periferia.png" }
+};
+
+Organismo::Organismo(TipoOrganismo t, ZonaPlaneta z, float angulo, float raio)
+    : tipo(t), zona(z), anguloOrbital(angulo), raioOrbital(raio),
+      vivo(true), idade(0), ciclosVida(0), ciclosReproducao(0)
+{
     inicializarAtributos();
     atualizarAparencia();
+
+    // carregar textura
+    if (caminhosTexturas.count(tipo)) {
+        textura = LoadTexture(caminhosTexturas[tipo]);
+        temTextura = true;
+    } else {
+        temTextura = false;
+    }
 }
 
-Organismo::~Organismo() {}
+Organismo::~Organismo() {
+    if (temTextura) {
+        UnloadTexture(textura);
+    }
+}
 
 void Organismo::inicializarAtributos() {
     // Inicializar atributos baseado no tipo
@@ -266,17 +302,59 @@ void Organismo::mover(float deltaTime) {
 
 void Organismo::desenhar(Vector2 centroTela) const {
     if (!vivo) return;
-    
-    // Calcular posição na tela
-    float x = centroTela.x + raioOrbital * cos(anguloOrbital);
-    float y = centroTela.y + raioOrbital * sin(anguloOrbital);
-    
-    // Desenhar organismo
-    DrawCircle((int)x, (int)y, tamanho, cor);
-    
-    // Efeito visual para reagentes
-    if (categoria == TipoCategoria::REAGENTE) {
-        DrawCircleLines((int)x, (int)y, tamanho + 2, Fade(cor, 0.3f));
+
+    float x = centroTela.x + raioOrbital * std::cos(anguloOrbital);
+    float y = centroTela.y + raioOrbital * std::sin(anguloOrbital);
+
+    if (temTextura) {
+        Rectangle src = { 0, 0, (float)textura.width, (float)textura.height };
+        Rectangle dst = { x, y, tamanho * 6, tamanho * 6 };
+        Vector2 origin = { dst.width / 2, dst.height / 2 };
+
+        DrawTexturePro(textura, src, dst, origin, 0.0f, WHITE);
+    } else {
+        DrawCircle((int)x, (int)y, tamanho, cor);
+    }
+
+    // 🔽 efeitos ESPECÍFICOS continuam AQUI DENTRO
+    switch (tipo) {
+        case TipoOrganismo::PYROSYNTH:
+            DrawCircle((int)x, (int)y, tamanho * 1.3f, Fade(ORANGE, 0.2f));
+            break;
+
+        case TipoOrganismo::IGNIVAR:
+            if ((int)(GetTime() * 10) % 2 == 0) {
+                DrawCircleLines((int)x, (int)y, tamanho + 3, YELLOW);
+            }
+            break;
+
+        case TipoOrganismo::LUMIVINE:
+            DrawCircle((int)x, (int)y, tamanho * 1.5f, Fade(LIME, 0.15f));
+            break;
+
+        case TipoOrganismo::SYNAPSEX: {
+            float pulse = std::sin(GetTime() * 3) * 0.5f + 0.5f;
+            DrawCircleLines(
+                (int)x,
+                (int)y,
+                tamanho + 2 + pulse * 3,
+                Fade(GREEN, 0.3f + pulse * 0.3f)
+            );
+            break;
+        }
+
+        case TipoOrganismo::CRYOMOSS:
+            DrawRectangleLines(
+                (int)(x - tamanho/2 - 2),
+                (int)(y - tamanho/2 - 2),
+                (int)(tamanho + 4),
+                (int)(tamanho + 4),
+                Fade(SKYBLUE, 0.4f)
+            );
+            break;
+
+        default:
+            break;
     }
 }
 

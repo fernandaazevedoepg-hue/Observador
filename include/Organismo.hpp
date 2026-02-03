@@ -40,7 +40,7 @@ private:
     TipoOrganismo tipo;
     TipoCategoria categoria;
     ZonaPlaneta zona;
-    
+
     // Atributos do organismo
     float energia;
     float energiaMaxima;
@@ -49,14 +49,16 @@ private:
     float velocidadeOrbital;
     float eficienciaMetabolica;
     bool vivo;
-    
+    Color cor;
+    float tamanho;
+    Texture2D textura;
+    bool temTextura;
+
+
     // Posição orbital
     float anguloOrbital;
     float raioOrbital;
     
-    // Características visuais
-    Color cor;
-    float tamanho;
     
     // Reprodução
     int ciclosVida;

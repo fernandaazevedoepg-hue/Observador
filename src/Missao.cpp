@@ -237,12 +237,14 @@ void GestorMissoes::atualizar(float deltaTime, const Populacao& pop, const Ambie
 }
 
 bool GestorMissoes::todasMissoesCompletas() const {
+    int completas = 0;
     for (const auto& missao : missoes) {
-        if (missao.getEstado() != EstadoMissao::COMPLETADA) {
-            return false;
+        if (missao.getEstado() == EstadoMissao::COMPLETADA) {
+            completas++;
         }
     }
-    return true;
+    // Todas as missões devem estar completas
+    return completas == missoes.size() && missoes.size() > 0;
 }
 
 bool GestorMissoes::podeAvancarFase() const {
