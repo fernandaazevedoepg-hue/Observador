@@ -59,6 +59,14 @@ private:
     
     // Recompensas
     int pontos;
+
+    // Requisitos/condições especiais
+    TipoEvento eventoRequerido;
+    bool eventoFoiAtivado;
+    float tempoCondicao;
+
+    // Ações manuais (para missões que dependem de input do jogador)
+    bool acaoManualFeita = false;
     
     // Contra o sistema?
     bool missaoResistencia;
@@ -84,6 +92,8 @@ public:
     // Comportamentos
     void iniciar();
     void atualizar(float deltaTime, const Populacao& pop, const Ambiente& ambiente);
+    void notificarEventoAtivado(TipoEvento evento);
+    void notificarAcaoManual();
     bool verificarConclusao(const Populacao& pop, const Ambiente& ambiente);
     bool verificarFalha(const Populacao& pop, const Ambiente& ambiente);
     
@@ -109,6 +119,8 @@ public:
     void proximaMissao();
     void completarMissao();
     void falharMissao();
+    void notificarEventoAtivado(ZonaPlaneta zona, TipoEvento evento);
+    void notificarAcaoManual(TipoMissao tipo);
     
     // Getters
     Missao* getMissaoAtual() { return missaoAtual; }
@@ -119,6 +131,7 @@ public:
     
     // Atualização
     void atualizar(float deltaTime, const Populacao& pop, const Ambiente& ambiente);
+    void notificarEventoAtivado(TipoEvento evento);
     
     // Verificação de progressão
     bool todasMissoesCompletas() const;

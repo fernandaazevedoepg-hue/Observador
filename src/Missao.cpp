@@ -1,9 +1,11 @@
 #include "../include/Missao.hpp"
+#include <cmath>
 
 Missao::Missao(TipoMissao t, ZonaPlaneta zona) 
     : tipo(t), zonaAlvo(zona), estado(EstadoMissao::DISPONIVEL),
       objetivoNumerico(0), tempoObjetivo(0), tempoDecorrido(0),
-      pontos(100), missaoResistencia(false) {
+      pontos(0), eventoRequerido(TipoEvento::NENHUM), eventoFoiAtivado(false), tempoCondicao(0),
+      missaoResistencia(false) {
     inicializarMissao();
 }
 
@@ -11,25 +13,34 @@ Missao::~Missao() {}
 
 void Missao::inicializarMissao() {
     switch(tipo) {
-        case TipoMissao::TESTE_RESISTENCIA:
-            nome = "Teste de Resistencia";
-            descricao = "Provocar sobrecarga termica no Nucleo";
-            objetivo = "Sobrevivam pelo menos 5 organismos";
+                case TipoMissao::TESTE_RESISTENCIA:
+            nome = "Teste de Resistência";
+            descricao = "Provocar sobrecarga térmica no Núcleo e observar sobreviventes.";
+            objetivo = "Ative 'Sobrecarga Térmica' no Núcleo. Após o evento, pelo menos 5 organismos devem sobreviver.";
             objetivoNumerico = 5;
+            tempoObjetivo = 0;
+            pontos = 100;
+            eventoRequerido = TipoEvento::SOBRECARGA_TERMICA;
             break;
             
-        case TipoMissao::EVOLUCAO_ACELERADA:
-            nome = "Evolucao Acelerada";
-            descricao = "Forcar mutacoes no Nucleo";
-            objetivo = "Observar variacoes extremas";
-            tempoObjetivo = 60.0f;
+                case TipoMissao::EVOLUCAO_ACELERADA:
+            nome = "Evolução Acelerada";
+            descricao = "Forçar mutações em organismos do Núcleo.";
+            objetivo = "Ative 'Radiação Intensa' no Núcleo e mantenha por 30s.";
+            objetivoNumerico = 30;
+            tempoObjetivo = 30.0f;
+            pontos = 150;
+            eventoRequerido = TipoEvento::RADIACAO_INTENSA;
             break;
             
-        case TipoMissao::EQUILIBRIO_PERFEITO:
-            nome = "Equilibrio Perfeito";
-            descricao = "Manter energia estavel por 5 minutos";
-            objetivo = "Analisar crescimento populacional";
-            tempoObjetivo = 300.0f;
+                case TipoMissao::EQUILIBRIO_PERFEITO:
+            nome = "Equilíbrio Perfeito";
+            descricao = "Manter energia e temperatura estáveis na Zona Habitável.";
+            objetivo = "Mantenha a Zona Habitável estável (sem eventos; temperatura/recursos próximos do ideal) por 90s.";
+            objetivoNumerico = 90;
+            tempoObjetivo = 90.0f;
+            pontos = 120;
+            eventoRequerido = TipoEvento::NENHUM;
             break;
             
         case TipoMissao::SIMBIOSE:
@@ -39,17 +50,24 @@ void Missao::inicializarMissao() {
             objetivoNumerico = 20;
             break;
             
-        case TipoMissao::ESTIMULO_MINIMO:
-            nome = "Estimulo Minimo";
-            descricao = "Ativar evento de baixa intensidade";
-            objetivo = "Forcar reacao em ambiente hostil";
+                case TipoMissao::ESTIMULO_MINIMO:
+            nome = "Estímulo Mínimo";
+            descricao = "Ativar um evento de baixa intensidade na Periferia.";
+            objetivo = "Ative 'Estabilidade Temporária' na Periferia e mantenha por 10s.";
+            objetivoNumerico = 10;
+            tempoObjetivo = 10.0f;
+            pontos = 80;
+            eventoRequerido = TipoEvento::ESTABILIDADE_TEMPORARIA;
             break;
             
-        case TipoMissao::SELECAO_NATURAL:
-            nome = "Selecao Natural";
-            descricao = "Criar escassez prolongada";
-            objetivo = "Reduzir populacao para niveis sustentaveis";
+                case TipoMissao::SELECAO_NATURAL:
+            nome = "Seleção Natural";
+            descricao = "Criar escassez prolongada e reduzir a população da Periferia.";
+            objetivo = "Ative 'Escassez de Energia' na Periferia por 25s e reduza a população para <= 10.";
             objetivoNumerico = 10;
+            tempoObjetivo = 25.0f;
+            pontos = 130;
+            eventoRequerido = TipoEvento::ESCASSEZ_ENERGIA;
             break;
             
         // Fase 2
@@ -102,13 +120,69 @@ void Missao::inicializarMissao() {
 void Missao::iniciar() {
     estado = EstadoMissao::EM_PROGRESSO;
     tempoDecorrido = 0;
+    tempoCondicao = 0;
+    eventoFoiAtivado = false;
+}
+
+void Missao::notificarEventoAtivado(TipoEvento evento) {
+    if (estado != EstadoMissao::EM_PROGRESSO) return;
+    if (eventoRequerido != TipoEvento::NENHUM && evento == eventoRequerido) {
+        eventoFoiAtivado = true;
+    }
+}
+
+void Missao::notificarAcaoManual() {
+    if (estado != EstadoMissao::EM_PROGRESSO) return;
+
+    // Ações manuais (teclas/controles) só contam para as missões de resistência (Fase 3)
+    switch (tipo) {
+        case TipoMissao::INTERFERENCIA_OCULTA:
+        case TipoMissao::ZONA_SILENCIO:
+        case TipoMissao::QUEBRA_PROTOCOLO:
+            // Marca como concluída simulando que a condição/tempo-alvo foi atingido
+            tempoDecorrido = tempoObjetivo;
+            tempoCondicao = tempoObjetivo;
+            estado = EstadoMissao::COMPLETADA;
+            break;
+        default:
+            break;
+    }
 }
 
 void Missao::atualizar(float deltaTime, const Populacao& pop, const Ambiente& ambiente) {
     if (estado != EstadoMissao::EM_PROGRESSO) return;
-    
+
     tempoDecorrido += deltaTime;
-    
+
+    // Atualiza condição/progresso específico por missão
+    switch (tipo) {
+        case TipoMissao::EVOLUCAO_ACELERADA:
+        case TipoMissao::ESTIMULO_MINIMO:
+        case TipoMissao::SELECAO_NATURAL:
+            if (ambiente.getEventoAtual() == eventoRequerido) tempoCondicao += deltaTime;
+            break;
+
+        case TipoMissao::EQUILIBRIO_PERFEITO: {
+            // Estável = sem evento e muito perto do "ideal" da zona
+            float tempIdeal = 0.5f;
+            float recIdeal = 1.0f;
+            if (zonaAlvo == ZonaPlaneta::NUCLEO) { tempIdeal = 0.9f; recIdeal = 0.8f; }
+            if (zonaAlvo == ZonaPlaneta::PERIFERIA) { tempIdeal = 0.2f; recIdeal = 0.4f; }
+
+            bool estavel =
+                (ambiente.getEventoAtual() == TipoEvento::NENHUM) &&
+                (fabsf(ambiente.getTemperatura() - tempIdeal) < 0.05f) &&
+                (fabsf(ambiente.getNivelRecursos() - recIdeal) < 0.15f);
+
+            if (estavel) tempoCondicao += deltaTime;
+            else tempoCondicao = 0.0f;
+            break;
+        }
+
+        default:
+            break;
+    }
+
     if (verificarConclusao(pop, ambiente)) {
         estado = EstadoMissao::COMPLETADA;
     } else if (verificarFalha(pop, ambiente)) {
@@ -119,31 +193,41 @@ void Missao::atualizar(float deltaTime, const Populacao& pop, const Ambiente& am
 bool Missao::verificarConclusao(const Populacao& pop, const Ambiente& ambiente) {
     switch(tipo) {
         case TipoMissao::TESTE_RESISTENCIA:
-            // Só completa se evento terminou E tem 5+ organismos
-            if (ambiente.getEventoAtual() == TipoEvento::NENHUM && 
-                tempoDecorrido > 30.0f && 
-                pop.getTamanho() >= 5) {
-                return true;
-            }
-            return false;
-            
+            // Só completa se a sobrecarga foi ativada e já terminou
+            if (!eventoFoiAtivado) return false;
+            return (ambiente.getEventoAtual() == TipoEvento::NENHUM) && (pop.getTamanho() >= objetivoNumerico);
+
         case TipoMissao::EVOLUCAO_ACELERADA:
-            return tempoDecorrido >= 60.0f;
-            
+            // Manter Radiação Intensa por tempoObjetivo
+            return tempoCondicao >= tempoObjetivo;
+
         case TipoMissao::EQUILIBRIO_PERFEITO:
-            return tempoDecorrido >= 300.0f && pop.getTamanho() > 15;
-            
+            // Manter estabilidade contínua por tempoObjetivo
+            return (tempoCondicao >= tempoObjetivo) && (pop.getTamanho() > 10);
+
         case TipoMissao::SIMBIOSE:
             return pop.getTamanho() >= 20;
-            
+
+        case TipoMissao::ESTIMULO_MINIMO:
+            // Estabilidade Temporária por 10s
+            return tempoCondicao >= tempoObjetivo;
+
         case TipoMissao::SELECAO_NATURAL:
-            return pop.getTamanho() <= 10 && tempoDecorrido > 30.0f;
-            
+            // Escassez prolongada + população baixa
+            return (tempoCondicao >= tempoObjetivo) && (pop.getTamanho() <= objetivoNumerico);
+
+        // Fase 3 - Resistência (ações do jogador)
+        case TipoMissao::INTERFERENCIA_OCULTA:
+        case TipoMissao::ZONA_SILENCIO:
+        case TipoMissao::QUEBRA_PROTOCOLO:
+            return acaoManualFeita;
+
         default:
-            // Outras missões: tempo mínimo de 30s
+            // Outras missões: tempo mínimo de 30s (placeholder)
             return tempoDecorrido >= 30.0f;
     }
 }
+
 
 bool Missao::verificarFalha(const Populacao& pop, const Ambiente& ambiente) {
     // Falha se população zerou (exceto em missões de resistência)
@@ -172,6 +256,7 @@ GestorMissoes::~GestorMissoes() {}
 void GestorMissoes::inicializarFase(int numeroFase) {
     fase = numeroFase;
     missoes.clear();
+    totalCompletadas = 0;
     
     switch(fase) {
         case 1:
@@ -238,6 +323,18 @@ void GestorMissoes::completarMissao() {
 
 void GestorMissoes::falharMissao() {
     proximaMissao();
+}
+
+void GestorMissoes::notificarEventoAtivado(ZonaPlaneta zona, TipoEvento evento) {
+    if (missaoAtual == nullptr) return;
+    if (missaoAtual->getZonaAlvo() != zona) return;
+    missaoAtual->notificarEventoAtivado(evento);
+}
+
+void GestorMissoes::notificarAcaoManual(TipoMissao tipo) {
+    if (missaoAtual == nullptr) return;
+    if (missaoAtual->getTipo() != tipo) return;
+    missaoAtual->notificarAcaoManual();
 }
 
 void GestorMissoes::atualizar(float deltaTime, const Populacao& pop, const Ambiente& ambiente) {

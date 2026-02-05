@@ -48,9 +48,11 @@ public:
     // Inicialização
     void inicializarPopulacao(ZonaPlaneta zona, int quantidade);
     void limpar();
+    void removerAleatorios(int quantidade);
     
     // Renderização
     void desenhar(Vector2 centroTela) const;
+
     
 private:
     TipoOrganismo getOrganismoAleatorio(ZonaPlaneta zona) const;

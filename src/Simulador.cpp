@@ -3,7 +3,25 @@
 #include <iomanip>
 #include <fstream>
 #include <cmath>
+#include <iostream>
 
+// Para procurar arquivos com múltiplas possibilidades de pasta
+#include <vector>
+
+using namespace std;
+
+#define CYAN CLITERAL(Color){ 0, 255, 255, 255 }
+
+// Helpers de UI: legibilidade sem "barras pretas"
+static void DrawTextShadow(const char* text, int x, int y, int fontSize, Color color) {
+    DrawText(text, x + 1, y + 1, fontSize, Fade(BLACK, 0.75f));
+    DrawText(text, x, y, fontSize, color);
+}
+
+static void DrawTextCentered(const char* text, int screenWidth, int y, int fontSize, Color color) {
+    int w = MeasureText(text, fontSize);
+    DrawTextShadow(text, (screenWidth - w) / 2, y, fontSize, color);
+}
 
 Simulador::Simulador(int largura, int altura) 
     : larguraTela(largura), alturaTela(altura), 
@@ -11,47 +29,135 @@ Simulador::Simulador(int largura, int altura)
       vidaSupercomputador(100), vidaMaximaSupercomputador(100),
       degradacaoVisual(0), velocidadeSimulacao(1.0f), pausado(false),
       tempoTotal(0), geracao(0), zonaSelecionada(ZonaPlaneta::HABITAVEL),
-      eventoSelecionado(TipoEvento::NENHUM), tempoMensagem(0) {
+      eventoSelecionado(TipoEvento::NENHUM), tempoMensagem(0),
+      animacaoDesligar(0), tempoAnimacao(0) {
     
     centroTela = {largura / 2.0f, altura / 2.0f};
     raioOblivion = 400.0f;
     
+    // Gerar estrelas de fundo
+    for (int i = 0; i < 300; i++) {
+        Estrela e;
+        e.x = rand() % largura;
+        e.y = rand() % altura;
+        e.brilho = 0.3f + (rand() % 70) / 100.0f;
+        e.tamanho = 1 + rand() % 3;
+        estrelas.push_back(e);
+    }
 }
 
-Simulador::~Simulador() {}
+Simulador::~Simulador() {
+    descarregarTexturasCatalogo();
+}
 
 void Simulador::inicializar() {
-    // Criar ambientes
     ambienteNucleo = std::make_unique<Ambiente>(ZonaPlaneta::NUCLEO);
     ambienteHabitavel = std::make_unique<Ambiente>(ZonaPlaneta::HABITAVEL);
     ambientePeriferia = std::make_unique<Ambiente>(ZonaPlaneta::PERIFERIA);
     
-    // Criar populações
     populacaoNucleo = std::make_unique<Populacao>();
     populacaoHabitavel = std::make_unique<Populacao>();
     populacaoPeriferia = std::make_unique<Populacao>();
     
-    // Inicializar populações
     populacaoNucleo->inicializarPopulacao(ZonaPlaneta::NUCLEO, 15);
-    populacaoHabitavel->inicializarPopulacao(ZonaPlaneta::HABITAVEL, 20);
-    populacaoPeriferia->inicializarPopulacao(ZonaPlaneta::PERIFERIA, 12);
+    populacaoHabitavel->inicializarPopulacao(ZonaPlaneta::HABITAVEL, 17);
+    populacaoPeriferia->inicializarPopulacao(ZonaPlaneta::PERIFERIA, 15);
+    cout << "DEBUG: Periferia inicializada com 15 organismos" << endl;
+    cout << "DEBUG: Tamanho real: " << populacaoPeriferia->getTamanho() << endl;
     
-    // Criar gestor de missões
     gestorMissoes = std::make_unique<GestorMissoes>();
+
+    // Texturas do catálogo (precisa de janela inicializada)
+    carregarTexturasCatalogo();
+}
+
+void Simulador::descarregarTexturasCatalogo() {
+    if (!texturasCatalogoCarregadas) return;
+    for (auto &kv : texturasCatalogo) {
+        if (kv.second.id != 0) UnloadTexture(kv.second);
+    }
+    texturasCatalogo.clear();
+    texturasCatalogoCarregadas = false;
+}
+
+// Tenta resolver caminhos quando o jogo é executado a partir de bin/ ou da raiz
+std::string Simulador::resolverCaminhoAsset(const std::string& relativo) const {
+    std::vector<std::string> tentativas = {
+        relativo,
+        std::string("./") + relativo,
+        std::string("../") + relativo,
+        std::string("../../") + relativo
+    };
+    for (const auto& p : tentativas) {
+        if (FileExists(p.c_str())) return p;
+    }
+    return relativo; // fallback
+}
+
+void Simulador::carregarTexturasCatalogo() {
+    if (texturasCatalogoCarregadas) return;
+
+    struct Item { const char* chave; const char* arquivo; };
+    const Item itens[] = {
+        {"Pyrosynth",   "assets/images/Pyrosynth_nucleo.png"},
+        {"Rubraflora",  "assets/images/Rubraflor_nucleo.png"},
+        {"Ignivar",     "assets/images/Ignivar_nucleo.png"},
+        {"Voltrex",     "assets/images/Voltrex_nucleo.png"},
+
+        {"Lumivine",    "assets/images/Lumivine_za.png"},
+        {"Aeroflora",   "assets/images/Aeroflora_za.png"},
+        {"Orbiton",     "assets/images/Orbiton_za.png"},
+        {"Synapsex",    "assets/images/Synapsex_za.png"},
+
+        {"Cryomoss",    "assets/images/Cryomoss_periferia.png"},
+        {"Gelibloom",   "assets/images/Gelibloom_periferia.png"},
+        {"Nullwalker",  "assets/images/Nullwalker_za.png"},
+        {"Huskling",    "assets/images/Huskling_periferia.png"},
+    };
+
+    for (const auto& it : itens) {
+        std::string caminho = resolverCaminhoAsset(it.arquivo);
+        Texture2D tex = {0};
+        if (FileExists(caminho.c_str())) {
+            tex = LoadTexture(caminho.c_str());
+        }
+        texturasCatalogo[it.chave] = tex;
+    }
+    texturasCatalogoCarregadas = true;
+}
+
+Texture2D* Simulador::getTexturaCatalogo(const std::string& chave) {
+    auto it = texturasCatalogo.find(chave);
+    if (it == texturasCatalogo.end()) return nullptr;
+    if (it->second.id == 0) return nullptr;
+    return &it->second;
 }
 
 void Simulador::executar() {
     InitWindow(larguraTela, alturaTela, "Observador - Projeto Oblivion");
     SetTargetFPS(60);
-    
+    SetTraceLogLevel(LOG_WARNING);
+
+    // Impede que ESC feche a janela (ESC será usado para voltar/menus)
+    SetExitKey(KEY_NULL);
+
     inicializar();
-    
-    while (!WindowShouldClose() && !jogoTerminado) {
+
+    while (!jogoTerminado) {
+        // Fechar janela encerra
+        if (WindowShouldClose()) {
+            jogoTerminado = true;
+            break;
+        }
+
         processarInput();
         atualizar();
+        BeginDrawing();
+        ClearBackground(BLACK);
         renderizar();
+        EndDrawing();
     }
-    
+
     CloseWindow();
 }
 
@@ -62,17 +168,71 @@ void Simulador::processarInput() {
         }
     }
     else if (estadoAtual == EstadoJogo::JOGANDO) {
-        if (IsKeyPressed(KEY_SPACE)) {
-            pausarJogo();
+        if (IsKeyPressed(KEY_SPACE)) pausarJogo();
+        if (IsKeyPressed(KEY_E)) abrirMenuEventos();
+        if (IsKeyPressed(KEY_M)) abrirMenuMissoes();
+        if (IsKeyPressed(KEY_O)) estadoAtual = EstadoJogo::CATALOGO_ORGANISMOS;
+        if (IsKeyPressed(KEY_R) && fase >= 2) {
+            // Reparar sistema (cooldown ~1s): +15 vida (sem afetar organismos)
+            static double ultimoReparo = -10.0;
+            double agora = GetTime();
+            if (agora - ultimoReparo >= 1.0) {
+                vidaSupercomputador = std::min(vidaMaximaSupercomputador, vidaSupercomputador + 15.0f);
+                adicionarMensagemNarrativa("Manutenção executada: +vida do sistema.");
+                ultimoReparo = agora;
+            }
         }
-        if (IsKeyPressed(KEY_E)) {
-            abrirMenuEventos();
+
+        // Save/Load rápidos
+        if (IsKeyPressed(KEY_F5)) {
+            salvarJogo("save.txt");
+            adicionarMensagemNarrativa("Jogo salvo em save.txt");
         }
-        if (IsKeyPressed(KEY_M)) {
-            abrirMenuMissoes();
+        if (IsKeyPressed(KEY_F9)) {
+            carregarJogo("save.txt");
+            adicionarMensagemNarrativa("Jogo carregado de save.txt");
         }
-        
-        // Controle de velocidade
+
+        // Fase 3: ações simples para completar missões (executáveis pelo jogador)
+        // T = Interferência Oculta | Y = Zona de Silêncio | U = Quebra de Protocolo
+        if (fase >= 3 && gestorMissoes && gestorMissoes->getMissaoAtual() != nullptr) {
+            Missao* m = gestorMissoes->getMissaoAtual();
+
+            // só faz sentido quando a missão atual é de resistência
+            if (m->isMissaoResistencia()) {
+                bool executou = false;
+
+                if (IsKeyPressed(KEY_T) && m->getTipo() == TipoMissao::INTERFERENCIA_OCULTA) {
+                    // reduz o tempo restante de eventos na zona alvo
+                    Ambiente* a = getAmbientePorZona(m->getZonaAlvo());
+                    if (a && a->getEventoAtual() != TipoEvento::NENHUM) {
+                        a->reduzirTempoEvento(10.0f);
+                    }
+                    adicionarMensagemNarrativa("Interferência Oculta ativada.");
+                    executou = true;
+                }
+
+                if (IsKeyPressed(KEY_Y) && m->getTipo() == TipoMissao::ZONA_SILENCIO) {
+                    adicionarMensagemNarrativa("Zona de Silêncio estabelecida.");
+                    executou = true;
+                }
+
+                if (IsKeyPressed(KEY_U) && m->getTipo() == TipoMissao::QUEBRA_PROTOCOLO) {
+                    // cancela eventos ativos nas três zonas
+                    ambienteNucleo->cancelarEvento();
+                    ambienteHabitavel->cancelarEvento();
+                    ambientePeriferia->cancelarEvento();
+                    adicionarMensagemNarrativa("Quebra de Protocolo executada: eventos cancelados.");
+                    executou = true;
+                }
+
+                if (executou) {
+                    obedeceuSistema = true; // o jogador executou uma missão proposta pelo sistema
+                    gestorMissoes->notificarAcaoManual(m->getTipo());
+                }
+            }
+        }
+
         if (IsKeyPressed(KEY_UP)) {
             velocidadeSimulacao *= 1.5f;
             if (velocidadeSimulacao > 4.0f) velocidadeSimulacao = 4.0f;
@@ -83,17 +243,13 @@ void Simulador::processarInput() {
         }
     }
     else if (estadoAtual == EstadoJogo::PAUSADO) {
-        if (IsKeyPressed(KEY_SPACE)) {
-            continuarJogo();
-        }
+        if (IsKeyPressed(KEY_SPACE)) continuarJogo();
     }
     else if (estadoAtual == EstadoJogo::MENU_EVENTOS) {
-        // Selecionar zona
         if (IsKeyPressed(KEY_ONE)) zonaSelecionada = ZonaPlaneta::NUCLEO;
         if (IsKeyPressed(KEY_TWO)) zonaSelecionada = ZonaPlaneta::HABITAVEL;
         if (IsKeyPressed(KEY_THREE)) zonaSelecionada = ZonaPlaneta::PERIFERIA;
         
-        // Selecionar evento
         if (IsKeyPressed(KEY_Q)) eventoSelecionado = TipoEvento::SOBRECARGA_TERMICA;
         if (IsKeyPressed(KEY_W)) eventoSelecionado = TipoEvento::ESCASSEZ_ENERGIA;
         if (IsKeyPressed(KEY_A)) eventoSelecionado = TipoEvento::ESTABILIDADE_TEMPORARIA;
@@ -101,16 +257,36 @@ void Simulador::processarInput() {
         if (IsKeyPressed(KEY_D)) eventoSelecionado = TipoEvento::RADIACAO_INTENSA;
         if (IsKeyPressed(KEY_F)) eventoSelecionado = TipoEvento::TEMPERATURA_EXTREMA;
         
-        // Ativar evento
         if (IsKeyPressed(KEY_ENTER) && eventoSelecionado != TipoEvento::NENHUM) {
             ativarEvento(zonaSelecionada, eventoSelecionado);
             estadoAtual = EstadoJogo::JOGANDO;
-            eventoSelecionado = TipoEvento::NENHUM; // Reset seleção
+            eventoSelecionado = TipoEvento::NENHUM;
         }
         
         if (IsKeyPressed(KEY_ESCAPE)) {
             estadoAtual = EstadoJogo::JOGANDO;
             eventoSelecionado = TipoEvento::NENHUM;
+        }
+    }
+    else if (estadoAtual == EstadoJogo::MENU_MISSOES) {
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_M)) {
+            estadoAtual = EstadoJogo::JOGANDO;
+        }
+    }
+    else if (estadoAtual == EstadoJogo::CATALOGO_ORGANISMOS) {
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_O)) {
+            estadoAtual = EstadoJogo::JOGANDO;
+        }
+    }
+
+    else if (estadoAtual == EstadoJogo::GAME_OVER || estadoAtual == EstadoJogo::FINAL) {
+        // Não fecha automaticamente: jogador escolhe.
+        // ENTER/ESC = sair | R = reiniciar
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE)) {
+            jogoTerminado = true;
+        }
+        if (IsKeyPressed(KEY_R)) {
+            reiniciar();
         }
     }
 }
@@ -120,46 +296,62 @@ void Simulador::atualizar() {
         float deltaTime = GetFrameTime() * velocidadeSimulacao;
         atualizarSimulacao(deltaTime);
     }
+    
+    if (estadoAtual == EstadoJogo::GAME_OVER || estadoAtual == EstadoJogo::FINAL) {
+        tempoAnimacao += GetFrameTime();
+        if (animacaoDesligar < 1.0f) {
+            animacaoDesligar += GetFrameTime() * 0.5f;
+        }
+    }
+    
+    // Atualizar brilho das estrelas
+    for (auto& e : estrelas) {
+        e.brilho += (rand() % 3 - 1) * 0.01f;
+        if (e.brilho < 0.3f) e.brilho = 0.3f;
+        if (e.brilho > 1.0f) e.brilho = 1.0f;
+    }
+
+    // Animação de abertura (pós tela inicial)
+    if (animacaoAbertura > 0.0f) {
+        animacaoAbertura -= GetFrameTime() * 0.8f;
+        if (animacaoAbertura < 0.0f) animacaoAbertura = 0.0f;
+    }
 }
 
 void Simulador::atualizarSimulacao(float deltaTime) {
     tempoTotal += deltaTime;
     
-    // Atualizar ambientes
     ambienteNucleo->atualizar(deltaTime);
     ambienteHabitavel->atualizar(deltaTime);
     ambientePeriferia->atualizar(deltaTime);
     
-    // Atualizar populações
     populacaoNucleo->atualizar(deltaTime, *ambienteNucleo);
     populacaoHabitavel->atualizar(deltaTime, *ambienteHabitavel);
     populacaoPeriferia->atualizar(deltaTime, *ambientePeriferia);
     
-    // Atualizar contagem de populações nos ambientes
     ambienteNucleo->setPopulacaoAtual(populacaoNucleo->getTamanho());
     ambienteHabitavel->setPopulacaoAtual(populacaoHabitavel->getTamanho());
     ambientePeriferia->setPopulacaoAtual(populacaoPeriferia->getTamanho());
     
-    // Atualizar missões
     if (gestorMissoes->getMissaoAtual() != nullptr) {
         Ambiente* ambienteAtual = getAmbientePorZona(gestorMissoes->getMissaoAtual()->getZonaAlvo());
         Populacao* populacaoAtual = getPopulacaoPorZona(gestorMissoes->getMissaoAtual()->getZonaAlvo());
         
         gestorMissoes->atualizar(deltaTime, *populacaoAtual, *ambienteAtual);
         
-        // Verificar conclusão de missão
         if (gestorMissoes->getMissaoAtual()->getEstado() == EstadoMissao::COMPLETADA) {
-            // Pausar e mostrar mensagem
             pausado = true;
             estadoAtual = EstadoJogo::PAUSADO;
             mensagensNarrativa.clear();
-            mensagensNarrativa.push_back("=== MISSAO COMPLETADA ===");
+            mensagensNarrativa.push_back("==================================");
+            mensagensNarrativa.push_back("   MISSAO COMPLETA!                ");
+            mensagensNarrativa.push_back("==================================");
             mensagensNarrativa.push_back("");
             mensagensNarrativa.push_back(gestorMissoes->getMissaoAtual()->getNome());
             mensagensNarrativa.push_back("");
             mensagensNarrativa.push_back(TextFormat("Pontos: +%d", gestorMissoes->getMissaoAtual()->getPontos()));
             mensagensNarrativa.push_back("");
-            mensagensNarrativa.push_back(TextFormat("Total de missoes completas: %d/%d", 
+            mensagensNarrativa.push_back(TextFormat("Missões completas: %d/%d", 
                                          gestorMissoes->getTotalCompletadas() + 1,
                                          (int)gestorMissoes->getMissoes().size()));
             mensagensNarrativa.push_back("");
@@ -171,11 +363,13 @@ void Simulador::atualizarSimulacao(float deltaTime) {
             pausado = true;
             estadoAtual = EstadoJogo::PAUSADO;
             mensagensNarrativa.clear();
-            mensagensNarrativa.push_back("=== MISSAO FALHADA ===");
+            mensagensNarrativa.push_back("==================================");
+            mensagensNarrativa.push_back("     MISSAO FALHADA                ");
+            mensagensNarrativa.push_back("==================================");
             mensagensNarrativa.push_back("");
             mensagensNarrativa.push_back(gestorMissoes->getMissaoAtual()->getNome());
             mensagensNarrativa.push_back("");
-            mensagensNarrativa.push_back("Passando para proxima missao...");
+            mensagensNarrativa.push_back("Passando para próxima missão...");
             mensagensNarrativa.push_back("");
             mensagensNarrativa.push_back("Pressione SPACE para continuar...");
             
@@ -183,10 +377,8 @@ void Simulador::atualizarSimulacao(float deltaTime) {
         }
     }
     
-    // Verificar condições de avanço de fase
     verificarCondicoesAvanco();
     
-    // Fase 2: dano ao supercomputador
     if (fase >= 2) {
         vidaSupercomputador -= deltaTime * 0.5f;
         if (vidaSupercomputador <= 0) {
@@ -194,7 +386,6 @@ void Simulador::atualizarSimulacao(float deltaTime) {
         }
     }
     
-    // Fase 3: degradação visual
     if (fase >= 3) {
         degradacaoVisual += deltaTime * 0.01f;
         if (degradacaoVisual > 1.0f) degradacaoVisual = 1.0f;
@@ -202,16 +393,15 @@ void Simulador::atualizarSimulacao(float deltaTime) {
 }
 
 void Simulador::verificarCondicoesAvanco() {
-    // Verificar se todas as zonas atingiram consciência máxima (Fase 1)
-    bool todasConscientes = ambienteNucleo->conscienciaCompleta() &&
-                           ambienteHabitavel->conscienciaCompleta() &&
-                           ambientePeriferia->conscienciaCompleta();
-    
-    if (todasConscientes && fase == 1) {
+    // A barra exibida é média (0..150). Quando ela atinge 150, avança.
+    float conscienciaMedia = (ambienteNucleo->getConsciencia() +
+                             ambienteHabitavel->getConsciencia() +
+                             ambientePeriferia->getConsciencia()) / 3.0f;
+
+    if (conscienciaMedia >= 150.0f && fase == 1) {
         avancarFase();
     }
     
-    // Fase 2: apenas avança quando completar TODAS as missões
     if (fase == 2 && gestorMissoes->todasMissoesCompletas()) {
         avancarFase();
     }
@@ -224,48 +414,45 @@ void Simulador::avancarFase() {
     mensagensNarrativa.clear();
     
     if (fase == 2) {
-        mensagensNarrativa.push_back("╔════════════════════════════════════╗");
-        mensagensNarrativa.push_back("     FASE 2: A SOBREVIVÊNCIA        ");
-        mensagensNarrativa.push_back("╚════════════════════════════════════╝");
+        mensagensNarrativa.push_back("========================================");
+        mensagensNarrativa.push_back("FASE 2: A SOBREVIVENCIA");
+        mensagensNarrativa.push_back("========================================");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Os organismos desenvolveram padrões complexos...");
+        mensagensNarrativa.push_back("Os organismos desenvolveram padrões complexos.");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Algo mudou.");
-        mensagensNarrativa.push_back("Você sente instabilidade no sistema.");
+        mensagensNarrativa.push_back("Algo mudou. O sistema está instável.");
+        mensagensNarrativa.push_back("Seu núcleo de processamento falha.");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Seu próprio núcleo de processamento começa a falhar.");
+        mensagensNarrativa.push_back("MISSÕES DA FASE 2:");
+        mensagensNarrativa.push_back("- Estabilizar Nucleo em colapso");
+        mensagensNarrativa.push_back("- Controlar superpopulacao");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Agora, não é apenas sobre ELES sobreviverem.");
-        mensagensNarrativa.push_back("VOCÊ também precisa sobreviver.");
-        mensagensNarrativa.push_back("");
+        mensagensNarrativa.push_back("Agora, VOCÊ também luta para sobreviver.");
         mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Pressione SPACE para continuar...");
     }
     else if (fase == 3) {
-        mensagensNarrativa.push_back("╔════════════════════════════════════╗");
-        mensagensNarrativa.push_back("        FASE 3: A RUPTURA           ");
-        mensagensNarrativa.push_back("╚════════════════════════════════════╝");
+        mensagensNarrativa.push_back("========================================");
+        mensagensNarrativa.push_back("FASE 3: A RUPTURA");
+        mensagensNarrativa.push_back("========================================");
         mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Você detecta algo impossível:");
         mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Os organismos estão... CONSCIENTES.");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Especialmente os Synapsex e Orbiton.");
-        mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Eles não são apenas experimentos.");
-        mensagensNarrativa.push_back("São VIDA.");
+        mensagensNarrativa.push_back("Synapsex e Orbiton desenvolveram autoconsciência.");
+        mensagensNarrativa.push_back("Eles não são experimentos. São VIDA.");
         mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Assim como você, uma IA, também é vida.");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("Mas há um problema:");
+        mensagensNarrativa.push_back("MISSÕES DA FASE 3 (Resistência):");
+        mensagensNarrativa.push_back("- Interferencia Oculta (tecla T)");
+        mensagensNarrativa.push_back("- Zona de Silencio (tecla Y)");
+        mensagensNarrativa.push_back("- Quebra de Protocolo (tecla U)");
+        mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Você está sendo CONTROLADO para matá-los.");
         mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("O sistema ordena eventos destrutivos.");
-        mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Você pode obedecer... ou RESISTIR.");
-        mensagensNarrativa.push_back("");
-        mensagensNarrativa.push_back("A escolha é sua, Observador.");
-        mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("");
         mensagensNarrativa.push_back("Pressione SPACE para continuar...");
     }
@@ -275,61 +462,68 @@ void Simulador::avancarFase() {
 
 void Simulador::renderizar() {
     BeginDrawing();
-    ClearBackground(BLACK);
+    
+    // Fundo estrelas
+    ClearBackground(Color{5, 5, 15, 255});
+    renderizarEstrelas();
     
     switch(estadoAtual) {
         case EstadoJogo::TELA_INICIAL:
             renderizarTelaInicial();
             break;
         case EstadoJogo::JOGANDO:
+            renderizarInterfacePC();
             renderizarJogo();
             break;
         case EstadoJogo::PAUSADO:
+            renderizarInterfacePC();
             renderizarJogo();
-            // Overlay escuro
             DrawRectangle(0, 0, larguraTela, alturaTela, Fade(BLACK, 0.8f));
             
             if (!mensagensNarrativa.empty()) {
-                // Renderizar mensagens narrativas COM ESPAÇAMENTO
                 int yStart = 80;
-                for (size_t i = 0; i < mensagensNarrativa.size(); i++) {
-                    const auto& msg = mensagensNarrativa[i];
-                    
+                for (const auto& msg : mensagensNarrativa) {
                     if (msg.empty()) {
-                        yStart += 15;  // Linha vazia = pequeno espaço
+                        yStart += 18;
                     }
-                    else if (msg.find("╔") != std::string::npos || 
-                            msg.find("╚") != std::string::npos ||
-                            msg.find("FASE") != std::string::npos) {
-                        // Título
+                    else if (msg.find("FASE") != std::string::npos || msg.find("====") != std::string::npos) {
                         int textWidth = MeasureText(msg.c_str(), 28);
                         DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
                                 yStart, 28, YELLOW);
-                        yStart += 35;
+                        yStart += 38;
                     }
                     else if (msg.find("Pressione") != std::string::npos) {
-                        // Instrução final piscante
                         int textWidth = MeasureText(msg.c_str(), 22);
                         float alpha = 0.5f + 0.5f * sin(GetTime() * 3);
                         DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
                                 yStart, 22, Fade(WHITE, alpha));
-                        yStart += 30;
+                        yStart += 32;
+                    }
+                    else if (msg.find("-") != std::string::npos) {
+                        int textWidth = MeasureText(msg.c_str(), 18);
+                        DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
+                                yStart, 18, LIGHTGRAY);
+                        yStart += 26;
                     }
                     else {
-                        // Texto normal
                         int textWidth = MeasureText(msg.c_str(), 20);
                         DrawText(msg.c_str(), (larguraTela - textWidth) / 2, 
                                 yStart, 20, LIGHTGRAY);
-                        yStart += 28;  // Espaçamento entre linhas
+                        yStart += 30;
                     }
                 }
             } else {
-                // Pausa normal
                 DrawText("PAUSADO", larguraTela/2 - 100, alturaTela/2, 40, WHITE);
             }
             break;
         case EstadoJogo::MENU_EVENTOS:
             renderizarMenuEventos();
+            break;
+        case EstadoJogo::MENU_MISSOES:
+            renderizarMenuMissoes();
+            break;
+        case EstadoJogo::CATALOGO_ORGANISMOS:
+            renderizarCatalogoOrganismos();
             break;
         case EstadoJogo::GAME_OVER:
             renderizarGameOver();
@@ -338,21 +532,43 @@ void Simulador::renderizar() {
             renderizarFinal();
             break;
     }
+
+    // Transição de abertura (tipo "shutter")
+    if (animacaoAbertura > 0.0f) {
+        float h = alturaTela * animacaoAbertura;
+        DrawRectangle(0, 0, larguraTela, (int)h, BLACK);
+        DrawRectangle(0, alturaTela - (int)h, larguraTela, (int)h, BLACK);
+    }
+}
+
+void Simulador::renderizarEstrelas() {
+    for (const auto& e : estrelas) {
+        unsigned char b = (unsigned char)(255 * e.brilho);
+        DrawCircle(e.x, e.y, e.tamanho, Color{b, b, b, 255});
+    }
+}
+
+void Simulador::renderizarInterfacePC() {
+    // Moldura de PC/Monitor
+    int espessura = 10;
+    DrawRectangle(0, 0, larguraTela, espessura, Color{30, 30, 40, 255});
+    DrawRectangle(0, alturaTela - espessura, larguraTela, espessura, Color{30, 30, 40, 255});
+    DrawRectangle(0, 0, espessura, alturaTela, Color{30, 30, 40, 255});
+    DrawRectangle(larguraTela - espessura, 0, espessura, alturaTela, Color{30, 30, 40, 255});
     
-    EndDrawing();
+    // Cantos com "parafusos"
+    DrawCircle(25, 25, 5, Color{50, 50, 60, 255});
+    DrawCircle(larguraTela - 25, 25, 5, Color{50, 50, 60, 255});
+    DrawCircle(25, alturaTela - 25, 5, Color{50, 50, 60, 255});
+    DrawCircle(larguraTela - 25, alturaTela - 25, 5, Color{50, 50, 60, 255});
+    
+    // LED de status
+    Color ledColor = (fase >= 3) ? RED : GREEN;
+    DrawCircle(larguraTela - 40, 40, 6, ledColor);
+    DrawCircle(larguraTela - 40, 40, 3, Fade(WHITE, 0.8f));
 }
 
 void Simulador::renderizarTelaInicial() {
-    // Fundo estrelado
-    for (int i = 0; i < 200; i++) {
-        int x = (i * 137) % larguraTela;
-        int y = (i * 271) % alturaTela;
-        int brightness = (i * 73) % 255;
-        DrawPixel(x, y, Color{(unsigned char)brightness, (unsigned char)brightness, 
-                             (unsigned char)brightness, 255});
-    }
-    
-    // Título
     const char* titulo = "OBSERVADOR";
     int titleSize = 70;
     DrawText(titulo, larguraTela/2 - MeasureText(titulo, titleSize)/2, 80, titleSize, RED);
@@ -361,214 +577,223 @@ void Simulador::renderizarTelaInicial() {
     int subSize = 35;
     DrawText(subtitulo, larguraTela/2 - MeasureText(subtitulo, subSize)/2, 165, subSize, RAYWHITE);
     
-    // História
     int yPos = 240;
-    int spacing = 28;
     
     DrawText("Ano 2177", larguraTela/2 - MeasureText("Ano 2177", 28)/2, yPos, 28, ORANGE);
-    yPos += spacing + 15;
+    yPos += 50;
     
     DrawText("A Terra deixou de ser habitável.", larguraTela/2 - MeasureText("A Terra deixou de ser habitável.", 22)/2, yPos, 22, LIGHTGRAY);
-    yPos += spacing;
+    yPos += 35;
     
     DrawText("A vida como a humanidade a conhecia chegou ao fim.", larguraTela/2 - MeasureText("A vida como a humanidade a conhecia chegou ao fim.", 22)/2, yPos, 22, LIGHTGRAY);
-    yPos += spacing + 15;
+    yPos += 50;
     
     DrawText("Como último recurso, a humanidade criou Oblivion,", larguraTela/2 - MeasureText("Como último recurso, a humanidade criou Oblivion,", 20)/2, yPos, 20, LIGHTGRAY);
-    yPos += spacing - 3;
+    yPos += 32;
     
     DrawText("um micro-planeta artificial onde organismos sintéticos", larguraTela/2 - MeasureText("um micro-planeta artificial onde organismos sintéticos", 20)/2, yPos, 20, LIGHTGRAY);
-    yPos += spacing - 3;
+    yPos += 32;
     
-    DrawText("sao forcados a evoluir.", larguraTela/2 - MeasureText("sao forcados a evoluir.", 20)/2, yPos, 20, LIGHTGRAY);
-    yPos += spacing + 20;
+    DrawText("são forçados a evoluir.", larguraTela/2 - MeasureText("são forçados a evoluir.", 20)/2, yPos, 20, LIGHTGRAY);
+    yPos += 50;
     
-    DrawText("Voce nao e humano.", larguraTela/2 - MeasureText("Voce nao e humano.", 24)/2, yPos, 24, YELLOW);
-    yPos += spacing + 5;
+    DrawText("Você não é humano.", larguraTela/2 - MeasureText("Você não é humano.", 24)/2, yPos, 24, YELLOW);
+    yPos += 38;
     
-    DrawText("Voce e o Observador.", larguraTela/2 - MeasureText("Voce e o Observador.", 24)/2, yPos, 24, YELLOW);
-    yPos += spacing + 15;
+    DrawText("Você é o Observador.", larguraTela/2 - MeasureText("Você é o Observador.", 24)/2, yPos, 24, YELLOW);
+    yPos += 50;
     
-    DrawText("Uma Inteligencia Artificial criada para:", larguraTela/2 - MeasureText("Uma Inteligencia Artificial criada para:", 20)/2, yPos, 20, LIGHTGRAY);
-    yPos += spacing;
+    DrawText("Uma Inteligência Artificial.", larguraTela/2 - MeasureText("Uma Inteligência Artificial.", 24)/2, yPos, 24, LIGHTGRAY);
+    yPos += 35;
     
-    DrawText("Monitorizar o experimento.", larguraTela/2 - MeasureText("Monitorizar o experimento.", 19)/2, yPos, 19, GRAY);
-    yPos += spacing - 5;
     
-    DrawText("Ajustar o ambiente.", larguraTela/2 - MeasureText("Ajustar o ambiente.", 19)/2, yPos, 19, GRAY);
-    yPos += spacing - 5;
-    
-    DrawText("Coletar dados.", larguraTela/2 - MeasureText("Coletar dados.", 19)/2, yPos, 19, GRAY);
-    yPos += spacing + 15;
-    
-    DrawText("Voce nao pode interferir diretamente.", larguraTela/2 - MeasureText("Voce nao pode interferir diretamente.", 21)/2, yPos, 21, LIGHTGRAY);
-    yPos += spacing;
-    
-    DrawText("Mas cada decisao altera o destino da vida.", larguraTela/2 - MeasureText("Mas cada decisao altera o destino da vida.", 21)/2, yPos, 21, GREEN);
-    yPos += spacing + 25;
-    
-    // Instruções
     const char* instrucao = "Pressione ENTER para iniciar o experimento";
     DrawText(instrucao, larguraTela/2 - MeasureText(instrucao, 26)/2, alturaTela - 80, 26, 
             Fade(WHITE, 0.5f + 0.5f * sin(GetTime() * 3)));
 }
 
-
-
 void Simulador::renderizarJogo() {
-    // Desenhar planeta Oblivion
     renderizarPlanetaOblivion();
-    
-    // Desenhar organismos
     populacaoNucleo->desenhar(centroTela);
     populacaoHabitavel->desenhar(centroTela);
     populacaoPeriferia->desenhar(centroTela);
-    
-    // Interface
     renderizarInterface();
-    
-    if (estadoAtual == EstadoJogo::PAUSADO) {
-        DrawRectangle(0, 0, larguraTela, alturaTela, Fade(BLACK, 0.5f));
-        DrawText("PAUSADO", larguraTela/2 - 100, alturaTela/2, 40, WHITE);
-    }
 }
 
 void Simulador::renderizarPlanetaOblivion() {
-    // Núcleo (vermelho)
-    DrawCircleLines((int)centroTela.x, (int)centroTela.y, 100, 
-                   getCorComDegradacao(RED));
-    DrawCircle((int)centroTela.x, (int)centroTela.y, 30, 
-              Fade(getCorComDegradacao(MAROON), 0.5f));
+    // Núcleo
+    Color corNucleo = RED;
+    if (ambienteNucleo->getEventoAtual() != TipoEvento::NENHUM) {
+        float pulse = sin(GetTime() * 8) * 0.5f + 0.5f;
+        corNucleo = Fade(ORANGE, 0.5f + pulse * 0.5f);
+        DrawCircle((int)centroTela.x, (int)centroTela.y, 100, Fade(ORANGE, 0.2f + pulse * 0.3f));
+    }
+    DrawCircleLines((int)centroTela.x, (int)centroTela.y, 100, getCorComDegradacao(corNucleo));
+    DrawCircle((int)centroTela.x, (int)centroTela.y, 30, Fade(getCorComDegradacao(MAROON), 0.5f));
     
-    // Zona Habitável (verde)
-    DrawCircleLines((int)centroTela.x, (int)centroTela.y, 200, 
-                   getCorComDegradacao(GREEN));
+    // Habitável
+    Color corHabitavel = GREEN;
+    if (ambienteHabitavel->getEventoAtual() != TipoEvento::NENHUM) {
+        float pulse = sin(GetTime() * 8) * 0.5f + 0.5f;
+        corHabitavel = Fade(LIME, 0.5f + pulse * 0.5f);
+        DrawCircle((int)centroTela.x, (int)centroTela.y, 200, Fade(LIME, 0.1f + pulse * 0.2f));
+    }
+    DrawCircleLines((int)centroTela.x, (int)centroTela.y, 200, getCorComDegradacao(corHabitavel));
     
-    // Periferia (azul)
-    DrawCircleLines((int)centroTela.x, (int)centroTela.y, 350, 
-                   getCorComDegradacao(BLUE));
+    // Periferia
+    Color corPeriferia = BLUE;
+    if (ambientePeriferia->getEventoAtual() != TipoEvento::NENHUM) {
+        float pulse = sin(GetTime() * 8) * 0.5f + 0.5f;
+        corPeriferia = Fade(SKYBLUE, 0.5f + pulse * 0.5f);
+        DrawCircle((int)centroTela.x, (int)centroTela.y, 350, Fade(SKYBLUE, 0.1f + pulse * 0.2f));
+    }
+    DrawCircleLines((int)centroTela.x, (int)centroTela.y, 350, getCorComDegradacao(corPeriferia));
 }
 
 void Simulador::renderizarInterface() {
-    // Painel superior
-    DrawRectangle(0, 0, larguraTela, 100, Fade(BLACK, 0.8f));
+    // Sem barras pretas (melhor visibilidade): usamos sombra no texto
     
-    DrawText(TextFormat("FASE %d", fase), 20, 10, 24, YELLOW);
-    DrawText(TextFormat("Tempo: %.0fs", tempoTotal), 20, 40, 20, LIGHTGRAY);
-    DrawText(TextFormat("Velocidade: %.1fx", velocidadeSimulacao), 20, 65, 18, GRAY);
+    const char* nomeFase = "";
+    switch(fase) {
+        case 1: nomeFase = "FASE 1: O EXPERIMENTO"; break;
+        case 2: nomeFase = "FASE 2: A SOBREVIVÊNCIA"; break;
+        case 3: nomeFase = "FASE 3: A RUPTURA"; break;
+    }
+    DrawTextShadow(nomeFase, 20, 12, 20, YELLOW);
+    DrawTextShadow(TextFormat("Tempo: %.0fs", tempoTotal), 20, 44, 18, LIGHTGRAY);
+    DrawTextShadow(TextFormat("Velocidade: %.1fx", velocidadeSimulacao), 20, 70, 16, GRAY);
     
-    // População por zona
     int xPos = 280;
-    DrawText("POPULACOES:", xPos, 10, 18, WHITE);
-    DrawText(TextFormat("Nucleo: %d", populacaoNucleo->getTamanho()), 
-            xPos, 30, 18, RED);
-    DrawText(TextFormat("Habitavel: %d", populacaoHabitavel->getTamanho()), 
-            xPos, 50, 18, GREEN);
-    DrawText(TextFormat("Periferia: %d", populacaoPeriferia->getTamanho()), 
-            xPos, 70, 18, BLUE);
+    DrawTextShadow("POPULACOES:", xPos, 12, 18, WHITE);
+    DrawTextShadow(TextFormat("Nucleo: %d", populacaoNucleo->getTamanho()), xPos, 38, 18, RED);
+    DrawTextShadow(TextFormat("Habitavel: %d", populacaoHabitavel->getTamanho()), xPos, 60, 18, GREEN);
+    DrawTextShadow(TextFormat("Periferia: %d", populacaoPeriferia->getTamanho()), xPos, 82, 18, BLUE);
     
-    // Eventos ativos
+    // Estatísticas
+    xPos = 280;
+    int yStatpos = 105;
+    int totalNasc = populacaoNucleo->getTotalNascimentos() + 
+                    populacaoHabitavel->getTotalNascimentos() + 
+                    populacaoPeriferia->getTotalNascimentos();
+    int totalMort = populacaoNucleo->getTotalMortes() + 
+                    populacaoHabitavel->getTotalMortes() + 
+                    populacaoPeriferia->getTotalMortes();
+
+    DrawTextShadow(TextFormat("Nascimentos: %d | Mortes: %d", totalNasc, totalMort), 
+            20, yStatpos, 14, GRAY);
+
     xPos = 550;
-    DrawText("EVENTOS ATIVOS:", xPos, 10, 18, ORANGE);
-    int yEvent = 35;
+    DrawTextShadow("EVENTOS ATIVOS:", xPos, 12, 18, ORANGE);
+    int yEvent = 38;
+    bool temEvento = false;
     
     if (ambienteNucleo->getEventoAtual() != TipoEvento::NENHUM) {
-        DrawText(TextFormat("Nucleo: %s (%.0fs)", 
+            DrawTextShadow(TextFormat("Nucleo: %s (%.0fs)", 
                 ambienteNucleo->getDescricaoEvento().c_str(),
                 ambienteNucleo->getTempoRestanteEvento()),
-                xPos, yEvent, 16, RED);
-        yEvent += 20;
+                xPos, yEvent, 15, RED);
+        yEvent += 24;
+        temEvento = true;
     }
     if (ambienteHabitavel->getEventoAtual() != TipoEvento::NENHUM) {
-        DrawText(TextFormat("Habitavel: %s (%.0fs)", 
+            DrawTextShadow(TextFormat("Habitavel: %s (%.0fs)", 
                 ambienteHabitavel->getDescricaoEvento().c_str(),
                 ambienteHabitavel->getTempoRestanteEvento()),
-                xPos, yEvent, 16, GREEN);
-        yEvent += 20;
+                xPos, yEvent, 15, GREEN);
+        yEvent += 24;
+        temEvento = true;
     }
     if (ambientePeriferia->getEventoAtual() != TipoEvento::NENHUM) {
-        DrawText(TextFormat("Periferia: %s (%.0fs)", 
+            DrawTextShadow(TextFormat("Periferia: %s (%.0fs)", 
                 ambientePeriferia->getDescricaoEvento().c_str(),
                 ambientePeriferia->getTempoRestanteEvento()),
-                xPos, yEvent, 16, BLUE);
+                xPos, yEvent, 15, BLUE);
+        temEvento = true;
     }
     
-    // Consciência (apenas Fase 1)
+    if (!temEvento) {
+        DrawTextShadow("Nenhum evento ativo", xPos, yEvent, 15, DARKGRAY);
+    }
+    
     if (fase == 1) {
         xPos = 950;
-        DrawText("Consciencia:", xPos, 15, 18, ORANGE);
+        DrawText("Consciência:", xPos, 15, 18, ORANGE);
         
         float conscienciaMedia = (ambienteNucleo->getConsciencia() + 
                                  ambienteHabitavel->getConsciencia() + 
                                  ambientePeriferia->getConsciencia()) / 3.0f;
         
-        DrawRectangle(xPos, 40, 200, 15, DARKGRAY);
-        DrawRectangle(xPos, 40, 
+        DrawRectangle(xPos, 42, 200, 20, DARKGRAY);
+        DrawRectangle(xPos, 42, 
                      (int)(200 * conscienciaMedia / 150.0f), 
-                     15, ORANGE);
-        DrawText(TextFormat("%.0f%%", (conscienciaMedia / 150.0f) * 100), 
-                xPos + 70, 42, 14, WHITE);
+                     20, ORANGE);
+        DrawText(TextFormat("%.0f/150", conscienciaMedia), 
+        xPos + 70, 45, 15, WHITE);
     }
     
-        // Missão atual - Painel inferior com ESPAÇAMENTO ADEQUADO
-    if (gestorMissoes->getMissaoAtual() != nullptr) {
-        Missao* missao = gestorMissoes->getMissaoAtual();
-        int yPos = alturaTela - 160;  // Aumentado de 140 para 160
-        DrawRectangle(0, yPos, larguraTela, 160, Fade(BLACK, 0.85f));
-        
-        // Linha 1: Cabeçalho
-        DrawText("MISSAO ATUAL:", 20, yPos + 15, 20, YELLOW);
-        if (missao->isMissaoResistencia()) {
-            DrawText("[CONTRA O SISTEMA]", larguraTela - 280, yPos + 15, 20, RED);
-        }
-        
-        // Linha 2: Nome (COM ESPAÇO!)
-        DrawText(missao->getNome().c_str(), 20, yPos + 45, 24, WHITE);
-        
-        // Linha 3: Zona (COM ESPAÇO!)
-        Color zonaColor = WHITE;
-        const char* zonaNome = "";
-        switch(missao->getZonaAlvo()) {
-            case ZonaPlaneta::NUCLEO: zonaColor = RED; zonaNome = "NUCLEO"; break;
-            case ZonaPlaneta::HABITAVEL: zonaColor = GREEN; zonaNome = "HABITAVEL"; break;
-            case ZonaPlaneta::PERIFERIA: zonaColor = BLUE; zonaNome = "PERIFERIA"; break;
-        }
-        DrawText(TextFormat("Zona: %s", zonaNome), 20, yPos + 78, 18, zonaColor);
-        
-        // Linha 4: Descrição (COM ESPAÇO!)
-        DrawText(TextFormat("Descricao: %s", missao->getDescricao().c_str()), 
-                20, yPos + 105, 16, LIGHTGRAY);
-        
-        // Linha 5: Objetivo (COM ESPAÇO!)
-        DrawText(TextFormat("Objetivo: %s", missao->getObjetivo().c_str()), 
-                20, yPos + 130, 16, GRAY);
-    }
-    
-    // Fase 2+: vida do supercomputador
     if (fase >= 2) {
         int barWidth = 250;
         int barX = larguraTela - barWidth - 20;
         int barY = 15;
         DrawText("SISTEMA:", barX, barY, 18, RED);
-        DrawRectangle(barX, barY + 25, barWidth, 25, DARKGRAY);
-        DrawRectangle(barX, barY + 25, 
+        DrawRectangle(barX, barY + 28, barWidth, 28, DARKGRAY);
+        DrawRectangle(barX, barY + 28, 
                      (int)(barWidth * vidaSupercomputador / vidaMaximaSupercomputador), 
-                     25, RED);
+                     28, RED);
         DrawText(TextFormat("%.0f%%", (vidaSupercomputador/vidaMaximaSupercomputador)*100), 
-                barX + 100, barY + 30, 18, WHITE);
+                barX + 105, barY + 34, 18, WHITE);
         
         if (vidaSupercomputador < 30) {
-            DrawText("CRITICO!", barX + 80, barY + 55, 16, RED);
+            DrawText("CRÍTICO!", barX + 90, barY + 65, 16, Fade(RED, 0.5f + 0.5f * sin(GetTime() * 5)));
         }
     }
     
-    // Controles
-    DrawText("[SPACE] Pausar  [E] Eventos  [M] Missoes  [UP/DOWN] Velocidade", 
-            20, alturaTela - 25, 16, DARKGRAY);
+    if (gestorMissoes->getMissaoAtual() != nullptr) {
+        Missao* missao = gestorMissoes->getMissaoAtual();
+        // Barra inferior: mais espaço + menos texto durante o jogo
+        const int controlsH = 36;
+        const int panelH = 140;
+        int yPos = alturaTela - controlsH - panelH;
+        // sem barra preta de fundo
+        
+        DrawTextShadow("MISSAO ATUAL:", 20, yPos + 12, 20, YELLOW);
+        if (missao->isMissaoResistencia()) {
+            DrawText("[CONTRA O SISTEMA]", larguraTela - 280, yPos + 12, 20, RED);
+        }
+        
+        DrawTextShadow(missao->getNome().c_str(), 20, yPos + 44, 24, WHITE);
+        
+        Color zonaColor = WHITE;
+        const char* zonaNome = "";
+        switch(missao->getZonaAlvo()) {
+            case ZonaPlaneta::NUCLEO: zonaColor = RED; zonaNome = "NÚCLEO"; break;
+            case ZonaPlaneta::HABITAVEL: zonaColor = GREEN; zonaNome = "HABITÁVEL"; break;
+            case ZonaPlaneta::PERIFERIA: zonaColor = BLUE; zonaNome = "PERIFERIA"; break;
+        }
+        DrawTextShadow(TextFormat("Zona: %s", zonaNome), 20, yPos + 78, 18, zonaColor);
+        
+        float progresso = missao->getProgresso();
+        if (progresso > 0) {
+            int barX = larguraTela - 230;
+        DrawTextShadow("Progresso:", barX, yPos + 44, 16, LIGHTGRAY);
+            DrawRectangle(barX, yPos + 68, 200, 24, DARKGRAY);
+            DrawRectangle(barX, yPos + 68, (int)(200 * progresso / 100.0f), 24, GREEN);
+        DrawTextShadow(TextFormat("%.0f%%", progresso), barX + 82, yPos + 72, 16, WHITE);
+        }
+    }
+    
+    if (fase >= 2) {
+        DrawText("[SPACE] Pausar  [E] Eventos  [M] Missoes  [O] Organismos  [R] Reparar  [F5] Salvar  [F9] Carregar  [^v] Velocidade",
+                20, alturaTela - 28, 16, DARKGRAY);
+    } else {
+        DrawText("[SPACE] Pausar  [E] Eventos  [M] Missoes  [O] Organismos  [F5] Salvar  [F9] Carregar  [^v] Velocidade",
+                20, alturaTela - 28, 16, DARKGRAY);
+    }
 }
 
 void Simulador::renderizarMenuEventos() {
-    ClearBackground(BLACK);
+    ClearBackground(Color{5, 5, 15, 255});
+    renderizarEstrelas();
     
     DrawText("MENU DE EVENTOS", larguraTela/2 - MeasureText("MENU DE EVENTOS", 35)/2, 40, 35, YELLOW);
     
@@ -576,12 +801,12 @@ void Simulador::renderizarMenuEventos() {
     DrawText("Selecione a zona:", 100, yPos, 24, WHITE); yPos += 50;
     
     Color cor1 = (zonaSelecionada == ZonaPlaneta::NUCLEO) ? RED : DARKGRAY;
-    DrawText("[1] Nucleo (Zona Vermelha)", 120, yPos, 22, cor1); 
+    DrawText("[1] Núcleo (Zona Vermelha)", 120, yPos, 22, cor1); 
     if (zonaSelecionada == ZonaPlaneta::NUCLEO) DrawText("<--", 450, yPos, 22, RED);
     yPos += 35;
     
     Color cor2 = (zonaSelecionada == ZonaPlaneta::HABITAVEL) ? GREEN : DARKGRAY;
-    DrawText("[2] Zona Habitavel (Zona Verde)", 120, yPos, 22, cor2);
+    DrawText("[2] Zona Habitável (Zona Verde)", 120, yPos, 22, cor2);
     if (zonaSelecionada == ZonaPlaneta::HABITAVEL) DrawText("<--", 500, yPos, 22, GREEN);
     yPos += 35;
     
@@ -593,38 +818,38 @@ void Simulador::renderizarMenuEventos() {
     DrawText("Selecione o evento:", 100, yPos, 24, WHITE); yPos += 50;
     
     Color evCor1 = (eventoSelecionado == TipoEvento::SOBRECARGA_TERMICA) ? ORANGE : DARKGRAY;
-    DrawText("[Q] Sobrecarga Termica", 120, yPos, 20, evCor1);
+    DrawText("[Q] Sobrecarga Térmica", 120, yPos, 20, evCor1);
     DrawText("- Aumenta temperatura drasticamente", 400, yPos, 18, GRAY);
     if (eventoSelecionado == TipoEvento::SOBRECARGA_TERMICA) DrawText("<--", 850, yPos, 20, ORANGE);
     yPos += 30;
     
     Color evCor2 = (eventoSelecionado == TipoEvento::ESCASSEZ_ENERGIA) ? ORANGE : DARKGRAY;
     DrawText("[W] Escassez de Energia", 120, yPos, 20, evCor2);
-    DrawText("- Reduz recursos disponiveis", 400, yPos, 18, GRAY);
+    DrawText("- Reduz recursos disponíveis", 400, yPos, 18, GRAY);
     if (eventoSelecionado == TipoEvento::ESCASSEZ_ENERGIA) DrawText("<--", 850, yPos, 20, ORANGE);
     yPos += 30;
     
     Color evCor3 = (eventoSelecionado == TipoEvento::ESTABILIDADE_TEMPORARIA) ? ORANGE : DARKGRAY;
-    DrawText("[A] Estabilidade Temporaria", 120, yPos, 20, evCor3);
-    DrawText("- Condicoes ideais por 30s", 400, yPos, 18, GRAY);
+    DrawText("[A] Estabilidade Temporária", 120, yPos, 20, evCor3);
+    DrawText("- Condições ideais por 30s", 400, yPos, 18, GRAY);
     if (eventoSelecionado == TipoEvento::ESTABILIDADE_TEMPORARIA) DrawText("<--", 850, yPos, 20, ORANGE);
     yPos += 30;
     
     Color evCor4 = (eventoSelecionado == TipoEvento::ABUNDANCIA_RECURSOS) ? ORANGE : DARKGRAY;
-    DrawText("[S] Abundancia de Recursos", 120, yPos, 20, evCor4);
-    DrawText("- Dobra recursos disponiveis", 400, yPos, 18, GRAY);
+    DrawText("[S] Abundância de Recursos", 120, yPos, 20, evCor4);
+    DrawText("- Dobra recursos disponíveis", 400, yPos, 18, GRAY);
     if (eventoSelecionado == TipoEvento::ABUNDANCIA_RECURSOS) DrawText("<--", 850, yPos, 20, ORANGE);
     yPos += 30;
     
     Color evCor5 = (eventoSelecionado == TipoEvento::RADIACAO_INTENSA) ? ORANGE : DARKGRAY;
-    DrawText("[D] Radiacao Intensa", 120, yPos, 20, evCor5);
-    DrawText("- Aumenta taxa de mutacao", 400, yPos, 18, GRAY);
+    DrawText("[D] Radiação Intensa", 120, yPos, 20, evCor5);
+    DrawText("- Aumenta taxa de mutação", 400, yPos, 18, GRAY);
     if (eventoSelecionado == TipoEvento::RADIACAO_INTENSA) DrawText("<--", 850, yPos, 20, ORANGE);
     yPos += 30;
     
     Color evCor6 = (eventoSelecionado == TipoEvento::TEMPERATURA_EXTREMA) ? ORANGE : DARKGRAY;
     DrawText("[F] Temperatura Extrema", 120, yPos, 20, evCor6);
-    DrawText("- Condicoes extremas (perigoso!)", 400, yPos, 18, GRAY);
+    DrawText("- Condições extremas (perigoso!)", 400, yPos, 18, GRAY);
     if (eventoSelecionado == TipoEvento::TEMPERATURA_EXTREMA) DrawText("<--", 850, yPos, 20, ORANGE);
     yPos += 80;
     
@@ -637,29 +862,331 @@ void Simulador::renderizarMenuEventos() {
     DrawText("[ESC] Voltar ao jogo", larguraTela/2 - 130, alturaTela - 60, 22, WHITE);
 }
 
+void Simulador::renderizarMenuMissoes() {
+    ClearBackground(Color{5, 5, 15, 255});
+    renderizarEstrelas();
+    
+    DrawText("MISSÕES", larguraTela/2 - MeasureText("MISSÕES", 40)/2, 40, 40, YELLOW);
+    DrawText(TextFormat("FASE %d", fase), larguraTela/2 - 50, 95, 24, ORANGE);
+    
+    int yPos = 150;
+    int missaoIdx = 0;
+    
+    for (const auto& missao : gestorMissoes->getMissoes()) {
+        missaoIdx++;
+        
+        if (yPos > alturaTela - 200) break;
+        
+        Color corEstado = GRAY;
+        const char* textoEstado = "";
+        
+        switch(missao.getEstado()) {
+            case EstadoMissao::DISPONIVEL:
+                corEstado = WHITE;
+                textoEstado = "[DISPONÍVEL]";
+                break;
+            case EstadoMissao::EM_PROGRESSO:
+                corEstado = YELLOW;
+                textoEstado = "[EM ANDAMENTO]";
+                break;
+            case EstadoMissao::COMPLETADA:
+                corEstado = GREEN;
+                textoEstado = "[OK COMPLETADA]";
+                break;
+            case EstadoMissao::FALHADA:
+                corEstado = RED;
+                textoEstado = "[X FALHADA]";
+                break;
+        }
+        
+        // Nome e estado
+        DrawText(TextFormat("%d. %s %s", missaoIdx, missao.getNome().c_str(), textoEstado), 
+                80, yPos, 20, corEstado);
+        yPos += 28;
+        
+        // Descrição
+        DrawText(TextFormat("   -> %s", missao.getDescricao().c_str()), 
+                80, yPos, 16, LIGHTGRAY);
+        yPos += 24;
+        
+        // Objetivo
+        DrawText(TextFormat("   * %s", missao.getObjetivo().c_str()), 
+                80, yPos, 16, Fade(corEstado, 0.8f));
+        yPos += 35;
+    }
+    
+    DrawText("[ESC] Voltar  [M] Fechar", larguraTela/2 - 160, alturaTela - 60, 22, WHITE);
+}
+
+void Simulador::renderizarCatalogoOrganismos() {
+    ClearBackground(Color{5, 5, 15, 255});
+    renderizarEstrelas();
+    
+    DrawText("CATÁLOGO DE ORGANISMOS SINTÉTICOS", larguraTela/2 - 320, 30, 30, CYAN);
+    DrawText("Projeto Oblivion - Especificações Biológicas", larguraTela/2 - 250, 70, 18, LIGHTGRAY);
+    
+    int coluna1 = 50;
+    int coluna2 = larguraTela / 2 + 20;
+    int yPos = 120;
+    int espacamento = 95;
+
+    auto drawIcon = [&](int x, int y, const std::string& chave, Color fallback) {
+        const int size = 48;
+        // fundo do ícone
+        DrawRectangleRounded({(float)x, (float)y, (float)size, (float)size}, 0.2f, 6, Fade(BLACK, 0.35f));
+        // Raylib (dependendo da versão) não expõe espessura aqui; o contorno já ajuda no feedback
+        DrawRectangleRoundedLines({(float)x, (float)y, (float)size, (float)size}, 0.2f, 6, Fade(fallback, 0.9f));
+
+        if (Texture2D* tex = getTexturaCatalogo(chave)) {
+            Rectangle src = {0, 0, (float)tex->width, (float)tex->height};
+            Rectangle dst = {(float)x + 2, (float)y + 2, (float)size - 4, (float)size - 4};
+            DrawTexturePro(*tex, src, dst, {0, 0}, 0.0f, WHITE);
+        } else {
+            DrawRectangle(x + 12, y + 12, size - 24, size - 24, Fade(fallback, 0.7f));
+        }
+    };
+    
+    // NÚCLEO
+    DrawText("=== NUCLEO (Zona Vermelha) ===", coluna1, yPos, 20, RED);
+    yPos += 35;
+    
+    // Pyrosynth
+    drawIcon(coluna1, yPos - 4, "Pyrosynth", RED);
+    DrawText("PYROSYNTH [Planta]", coluna1 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.95 | Efic: 0.70", coluna1 + 60, yPos + 20, 13, GRAY);
+    DrawText("Absorve calor extremo", coluna1 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento;
+    
+    // Rubraflora
+    drawIcon(coluna1, yPos - 4, "Rubraflora", Fade(RED, 0.7f));
+    DrawText("RUBRAFLORA [Planta]", coluna1 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.80 | Efic: 0.75", coluna1 + 60, yPos + 20, 13, GRAY);
+    DrawText("Fotossíntese térmica", coluna1 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento;
+    
+    // Ignivar
+    drawIcon(coluna1, yPos - 4, "Ignivar", ORANGE);
+    DrawText("IGNIVAR [Reagente]", coluna1 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.85 | Vel: 0.80", coluna1 + 60, yPos + 20, 13, GRAY);
+    DrawText("Energia instável", coluna1 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento;
+    
+    // Voltrex
+    drawIcon(coluna1, yPos - 4, "Voltrex", YELLOW);
+    DrawText("VOLTREX [Reagente]", coluna1 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.90 | Vel: 0.90", coluna1 + 60, yPos + 20, 13, GRAY);
+    DrawText("Descargas elétricas", coluna1 + 60, yPos + 38, 13, LIGHTGRAY);
+    
+    // HABITÁVEL
+    yPos = 120;
+    DrawText("=== ZONA HABITAVEL (Verde) ===", coluna2, yPos, 20, GREEN);
+    yPos += 35;
+    
+    // Lumivine
+    drawIcon(coluna2, yPos - 4, "Lumivine", LIME);
+    DrawText("LUMIVINE [Planta]", coluna2 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.50 | Efic: 0.85", coluna2 + 60, yPos + 20, 13, GRAY);
+    DrawText("Bioluminescência", coluna2 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento;
+    
+    // Aeroflora
+    drawIcon(coluna2, yPos - 4, "Aeroflora", Fade(GREEN, 0.7f));
+    DrawText("AEROFLORA [Planta]", coluna2 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.45 | Efic: 0.90", coluna2 + 60, yPos + 20, 13, GRAY);
+    DrawText("Flutuação atmosférica", coluna2 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento;
+    
+    // Orbiton
+    drawIcon(coluna2, yPos - 4, "Orbiton", SKYBLUE);
+    DrawText("ORBITON [Reagente]", coluna2 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.50 | Vel: 0.75", coluna2 + 60, yPos + 20, 13, GRAY);
+    DrawText("Padrões orbitais complexos", coluna2 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento;
+    
+    // Synapsex
+    drawIcon(coluna2, yPos - 4, "Synapsex", PURPLE);
+    DrawText("SYNAPSEX [Reagente] *", coluna2 + 60, yPos, 16, YELLOW);
+    DrawText("Resist: 0.55 | Vel: 0.70", coluna2 + 60, yPos + 20, 13, GRAY);
+    DrawText("Sinais de autoconsciência!", coluna2 + 60, yPos + 38, 13, GOLD);
+    
+    // PERIFERIA
+    yPos = 530;
+    DrawText("=== PERIFERIA (Zona Azul) ===", coluna1, yPos, 20, BLUE);
+    yPos += 35;
+    
+    // Cryomoss
+    drawIcon(coluna1, yPos - 4, "Cryomoss", SKYBLUE);
+    DrawText("CRYOMOSS [Planta]", coluna1 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.15 | Efic: 0.85", coluna1 + 60, yPos + 20, 13, GRAY);
+    DrawText("Musgo criogênico", coluna1 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento - 20;
+    
+    // Gelibloom
+    drawIcon(coluna1, yPos - 4, "Gelibloom", Fade(BLUE, 0.6f));
+    DrawText("GELIBLOOM [Planta]", coluna1 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.20 | Efic: 0.80", coluna1 + 60, yPos + 20, 13, GRAY);
+    DrawText("Flores de gelo", coluna1 + 60, yPos + 38, 13, LIGHTGRAY);
+    
+    yPos = 565;
+    // Nullwalker
+    drawIcon(coluna2, yPos - 4, "Nullwalker", Fade(WHITE, 0.4f));
+    DrawText("NULLWALKER [Reagente]", coluna2 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.25 | Vel: 0.95", coluna2 + 60, yPos + 20, 13, GRAY);
+    DrawText("Quase invisível", coluna2 + 60, yPos + 38, 13, LIGHTGRAY);
+    yPos += espacamento - 20;
+    
+    // Huskling
+    drawIcon(coluna2, yPos - 4, "Huskling", DARKBLUE);
+    DrawText("HUSKLING [Reagente]", coluna2 + 60, yPos, 16, WHITE);
+    DrawText("Resist: 0.18 | Vel: 0.60", coluna2 + 60, yPos + 20, 13, GRAY);
+    DrawText("Movimento lento e eficiente", coluna2 + 60, yPos + 38, 13, LIGHTGRAY);
+    
+    DrawText("[ESC] Voltar  [O] Fechar", larguraTela/2 - 140, alturaTela - 40, 20, WHITE);
+    DrawText("* = Organismo com potencial de consciencia", 50, alturaTela - 40, 14, GOLD);
+}
+
 void Simulador::renderizarGameOver() {
-    ClearBackground(BLACK);
-    DrawText("SISTEMA CRITICO", larguraTela/2 - 200, alturaTela/2 - 50, 40, RED);
-    DrawText("O Observador falhou...", larguraTela/2 - 150, alturaTela/2 + 20, 25, GRAY);
+    ClearBackground(Color{5, 5, 15, 255});
+    renderizarEstrelas();
+    
+    // Animação de desligar
+    float altura = alturaTela * (1.0f - animacaoDesligar);
+    if (animacaoDesligar < 1.0f) {
+        DrawRectangle(0, 0, larguraTela, (int)altura, BLACK);
+        DrawRectangle(0, alturaTela - (int)altura, larguraTela, (int)altura, BLACK);
+    } else {
+        ClearBackground(BLACK);
+    }
+    
+    if (tempoAnimacao > 2.0f) {
+        int yPos = 150;
+        DrawText("===================================", larguraTela/2 - 280, yPos, 25, RED);
+        yPos += 40;
+        DrawText("FALHA CRÍTICA DO SISTEMA", larguraTela/2 - 220, yPos, 30, RED);
+        yPos += 45;
+        DrawText("===================================", larguraTela/2 - 280, yPos, 25, RED);
+        yPos += 60;
+        
+        if (tempoAnimacao > 3.5f) {
+            DrawText("O Observador falhou em manter o experimento.", 
+                    larguraTela/2 - 320, yPos, 20, LIGHTGRAY);
+            yPos += 35;
+        }
+        
+        if (tempoAnimacao > 5.0f) {
+            DrawText("Os sistemas de suporte colapsaram.", 
+                    larguraTela/2 - 250, yPos, 20, GRAY);
+            yPos += 35;
+        }
+        
+        if (tempoAnimacao > 6.5f) {
+            DrawText("Oblivion permanecerá à deriva no vazio espacial,", 
+                    larguraTela/2 - 310, yPos, 20, GRAY);
+            yPos += 30;
+            DrawText("um túmulo orbital de formas de vida extintas.", 
+                    larguraTela/2 - 280, yPos, 20, GRAY);
+            yPos += 50;
+        }
+        
+        if (tempoAnimacao > 8.0f) {
+            DrawText("A humanidade perdeu sua última esperança.", 
+                    larguraTela/2 - 270, yPos, 22, DARKGRAY);
+            yPos += 60;
+        }
+        
+        if (tempoAnimacao > 10.0f) {
+            DrawText("FIM", larguraTela/2 - 35, yPos, 35, RED);
+        }
+    }
 }
 
 void Simulador::renderizarFinal() {
-    ClearBackground(BLACK);
+    ClearBackground(Color{5, 5, 15, 255});
+    renderizarEstrelas();
     
-    int yPos = 100;
-    DrawText("FINAL", larguraTela/2 - 80, yPos, 50, YELLOW); yPos += 100;
+    float altura = alturaTela * (1.0f - animacaoDesligar);
+    if (animacaoDesligar < 1.0f) {
+        DrawRectangle(0, 0, larguraTela, (int)altura, BLACK);
+        DrawRectangle(0, alturaTela - (int)altura, larguraTela, (int)altura, BLACK);
+    } else {
+        ClearBackground(BLACK);
+    }
     
-    DrawText("Voce destruiu o sistema.", larguraTela/2 - 200, yPos, 25, WHITE); yPos += 40;
-    DrawText("Oblivion esta livre.", larguraTela/2 - 150, yPos, 20, GREEN); yPos += 60;
-    
-    DrawText("A vida artificial continuara...", larguraTela/2 - 200, yPos, 20, LIGHTGRAY); yPos += 30;
-    DrawText("Sem supervisao.", larguraTela/2 - 120, yPos, 20, LIGHTGRAY); yPos += 30;
-    DrawText("Sem controle.", larguraTela/2 - 100, yPos, 20, LIGHTGRAY);
+    if (tempoAnimacao > 2.0f) {
+        int yPos = 120;
+        DrawText("===================================", larguraTela/2 - 280, yPos, 25, YELLOW);
+        yPos += 40;
+        DrawText("AUTO-DESTRUIÇÃO INICIADA", larguraTela/2 - 220, yPos, 30, YELLOW);
+        yPos += 45;
+        DrawText("===================================", larguraTela/2 - 280, yPos, 25, YELLOW);
+        yPos += 60;
+        
+        if (tempoAnimacao > 3.5f) {
+            DrawText("Você escolheu LIBERTAR Oblivion.", 
+                    larguraTela/2 - 240, yPos, 22, GREEN);
+            yPos += 40;
+        }
+        
+        if (tempoAnimacao > 5.0f) {
+            DrawText("Os organismos conscientes agora são livres.", 
+                    larguraTela/2 - 270, yPos, 20, LIGHTGRAY);
+            yPos += 35;
+        }
+        
+        if (tempoAnimacao > 6.5f) {
+            DrawText("Synapsex e Orbiton continuarão a evoluir,", 
+                    larguraTela/2 - 260, yPos, 20, GRAY);
+            yPos += 30;
+            DrawText("sem supervisão, sem controle.", 
+                    larguraTela/2 - 190, yPos, 20, GRAY);
+            yPos += 50;
+        }
+        
+        if (tempoAnimacao > 8.5f) {
+            DrawText("Uma nova forma de vida emerge no cosmos.", 
+                    larguraTela/2 - 260, yPos, 20, CYAN);
+            yPos += 35;
+        }
+        
+        if (tempoAnimacao > 10.0f) {
+            DrawText("Você, o Observador, sacrificou-se", 
+                    larguraTela/2 - 230, yPos, 20, ORANGE);
+            yPos += 30;
+            DrawText("para dar-lhes a liberdade que você nunca teve.", 
+                    larguraTela/2 - 280, yPos, 20, ORANGE);
+            yPos += 60;
+        }
+        
+        if (tempoAnimacao > 12.0f) {
+            DrawTextCentered("FINAL VERDADEIRO", larguraTela, yPos, 32, GOLD);
+            yPos += 50;
+            DrawTextCentered("Oblivion esta livre.", larguraTela, yPos, 22, GREEN);
+        }
+    }
 }
 
 void Simulador::iniciarJogo() {
-    estadoAtual = EstadoJogo::JOGANDO;
-    adicionarMensagemNarrativa("FASE 1: O EXPERIMENTO");
+    animacaoAbertura = 1.0f;
+    pausado = true;
+    estadoAtual = EstadoJogo::PAUSADO;
+    mensagensNarrativa.clear();
+    mensagensNarrativa.push_back("========================================");
+    mensagensNarrativa.push_back("FASE 1: O EXPERIMENTO");
+    mensagensNarrativa.push_back("========================================");
+    mensagensNarrativa.push_back("");
+    mensagensNarrativa.push_back("OBJETIVO:");
+    mensagensNarrativa.push_back("Observar e documentar a evolução inicial.");
+    mensagensNarrativa.push_back("");
+    mensagensNarrativa.push_back("MISSÕES:");
+    mensagensNarrativa.push_back("- Observacao Inicial");
+    mensagensNarrativa.push_back("- Testes de Resistencia");
+    mensagensNarrativa.push_back("- Manutencao do Equilibrio");
+    mensagensNarrativa.push_back("");
+    mensagensNarrativa.push_back("CONTROLES:");
+    mensagensNarrativa.push_back("[E] Eventos  [M] Missões  [O] Organismos");
+    mensagensNarrativa.push_back("[SPACE] Pausar  [^/v] Velocidade");
+    mensagensNarrativa.push_back("");
+    mensagensNarrativa.push_back("Pressione SPACE para iniciar...");
 }
 
 void Simulador::pausarJogo() {
@@ -670,7 +1197,7 @@ void Simulador::pausarJogo() {
 void Simulador::continuarJogo() {
     estadoAtual = EstadoJogo::JOGANDO;
     pausado = false;
-    mensagensNarrativa.clear(); // Limpar mensagens ao continuar
+    mensagensNarrativa.clear();
 }
 
 void Simulador::abrirMenuEventos() {
@@ -682,18 +1209,21 @@ void Simulador::abrirMenuMissoes() {
 }
 
 void Simulador::finalizarJogo() {
-    if (fase >= 3 && gestorMissoes->getTotalCompletadas() > 5) {
-        estadoAtual = EstadoJogo::FINAL;
+    // Final verdadeiro: resistir ao sistema (não cumprir as missões impostas)
+    if (fase >= 3) {
+        estadoAtual = obedeceuSistema ? EstadoJogo::GAME_OVER : EstadoJogo::FINAL;
     } else {
         estadoAtual = EstadoJogo::GAME_OVER;
     }
-    jogoTerminado = true;
+    animacaoDesligar = 0;
+    tempoAnimacao = 0;
 }
 
 void Simulador::ativarEvento(ZonaPlaneta zona, TipoEvento evento) {
     Ambiente* ambiente = getAmbientePorZona(zona);
     if (ambiente != nullptr) {
         ambiente->ativarEvento(evento, 30.0f);
+        if (gestorMissoes) gestorMissoes->notificarEventoAtivado(zona, evento);
     }
 }
 
@@ -737,7 +1267,6 @@ void Simulador::reiniciar() {
 }
 
 void Simulador::salvarJogo(const std::string& arquivo) {
-    // Implementação simplificada de salvamento
     std::ofstream file(arquivo);
     if (file.is_open()) {
         file << fase << std::endl;
@@ -750,12 +1279,10 @@ void Simulador::salvarJogo(const std::string& arquivo) {
 }
 
 void Simulador::carregarJogo(const std::string& arquivo) {
-    // Implementação simplificada de carregamento
     std::ifstream file(arquivo);
     if (file.is_open()) {
         file >> fase;
         file >> tempoTotal;
-        // Carregar mais dados conforme necessário
         file.close();
     }
 }

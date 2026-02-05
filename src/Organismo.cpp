@@ -11,7 +11,7 @@ using std::cos;
 
 static std::map<TipoOrganismo, const char*> caminhosTexturas = {
     { TipoOrganismo::PYROSYNTH, "assets/images/Pyrosynth_nucleo.png" },
-    { TipoOrganismo::RUBRAFLORA, "assets/images/Rubraflora_nucleo.png" },
+    { TipoOrganismo::RUBRAFLORA, "assets/images/Rubraflor_nucleo.png" },
     { TipoOrganismo::IGNIVAR, "assets/images/Ignivar_nucleo.png" },
     { TipoOrganismo::VOLTREX, "assets/images/Voltrex_nucleo.png" },
 
@@ -65,7 +65,7 @@ void Organismo::inicializarAtributos() {
             categoria = TipoCategoria::PLANTA;
             energiaMaxima = 80.0f;
             energia = energiaMaxima;
-            resistenciaTermica = 0.85f;
+            resistenciaTermica = 0.20f;
             velocidadeOrbital = 0.15f;
             eficienciaMetabolica = 0.6f;
             break;
@@ -75,7 +75,7 @@ void Organismo::inicializarAtributos() {
             categoria = TipoCategoria::REAGENTE;
             energiaMaxima = 90.0f;
             energia = energiaMaxima;
-            resistenciaTermica = 0.80f;
+            resistenciaTermica = 0.25f;
             velocidadeOrbital = 0.8f;
             eficienciaMetabolica = 0.4f;
             break;
@@ -132,7 +132,8 @@ void Organismo::inicializarAtributos() {
             categoria = TipoCategoria::PLANTA;
             energiaMaxima = 75.0f;
             energia = energiaMaxima;
-            resistenciaTermica = 0.90f;
+            // Periferia é fria: resistência térmica baixa = melhor adaptação ao frio
+            resistenciaTermica = 0.15f;
             velocidadeOrbital = 0.1f;
             eficienciaMetabolica = 0.9f;
             break;
@@ -160,7 +161,7 @@ void Organismo::inicializarAtributos() {
             categoria = TipoCategoria::REAGENTE;
             energiaMaxima = 70.0f;
             energia = energiaMaxima;
-            resistenciaTermica = 0.88f;
+            resistenciaTermica = 0.18f;
             velocidadeOrbital = 0.3f;
             eficienciaMetabolica = 0.65f;
             break;
@@ -179,7 +180,7 @@ void Organismo::atualizar(float deltaTime, float temperaturaZona, float recursos
     // Efeito da temperatura
     float diferencaTermica = std::abs(temperaturaZona - resistenciaTermica);
     if (diferencaTermica > 0.2f) {
-        consumirEnergia(diferencaTermica * 15.0f * deltaTime);
+        consumirEnergia(diferencaTermica * 25.0f * deltaTime);
     }
     
     // Absorção de recursos
@@ -248,14 +249,27 @@ void Organismo::envelhecer() {
 }
 
 bool Organismo::podeReproduzir() const {
-    return vivo && energia > energiaMaxima * 0.6f && idade > 10 && ciclosReproducao > 100;
+    if (!vivo) return false;
+
+    // Cooldown simples (baseado em frames ~60fps)
+    // Reproduções estavam raras demais; reduz cooldown para manter ecossistema vivo
+    int cooldown = (categoria == TipoCategoria::PLANTA) ? 600 : 450; // ~10s / ~7.5s
+    if (ciclosReproducao < cooldown) return false;
+
+    // Precisa estar bem alimentado
+    if (energia < energiaMaxima * 0.75f) return false;
+
+    // Chance (evita explosão populacional)
+    int chance = (categoria == TipoCategoria::PLANTA) ? 6 : 8; // %
+    return (rand() % 100) < chance;
 }
 
 Organismo* Organismo::reproduzir() {
+
     if (!podeReproduzir()) return nullptr;
     
     // Consumir energia para reprodução
-    energia *= 0.7f;
+    energia *= 0.6f;
     ciclosReproducao = 0;
     
     // Criar novo organismo próximo
@@ -279,7 +293,8 @@ void Organismo::aplicarMutacao() {
     if (eficienciaMetabolica > 1.0f) eficienciaMetabolica = 1.0f;
     
     resistenciaTermica += mutacao * 0.05f;
-    if (resistenciaTermica < 0.3f) resistenciaTermica = 0.3f;
+    // Permite adaptações ao frio (Periferia)
+    if (resistenciaTermica < 0.1f) resistenciaTermica = 0.1f;
     if (resistenciaTermica > 1.0f) resistenciaTermica = 1.0f;
     
     velocidadeOrbital += mutacao * 0.2f;

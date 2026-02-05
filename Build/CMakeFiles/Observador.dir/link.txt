@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/Observador.dir/src/Ambiente.cpp.o CMakeFiles/Observador.dir/src/Missao.cpp.o CMakeFiles/Observador.dir/src/Organismo.cpp.o CMakeFiles/Observador.dir/src/Populacao.cpp.o CMakeFiles/Observador.dir/src/Simulador.cpp.o CMakeFiles/Observador.dir/src/main.cpp.o -o /mnt/data/Observador/bin/Observador  /mnt/data/Observador/lib/libraylib.a -lm -ldl -lpthread -lX11 

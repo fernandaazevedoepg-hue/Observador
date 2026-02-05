@@ -1,0 +1,3 @@
+/mnt/data/Observador/Build/CMakeFiles/Observador.dir
+/mnt/data/Observador/Build/CMakeFiles/edit_cache.dir
+/mnt/data/Observador/Build/CMakeFiles/rebuild_cache.dir

@@ -72,6 +72,16 @@ void Ambiente::cancelarEvento() {
     tempoRestanteEvento = 0;
 }
 
+void Ambiente::reduzirTempoEvento(float segundos) {
+    if (eventoAtual == TipoEvento::NENHUM) return;
+    if (segundos <= 0) return;
+
+    tempoRestanteEvento -= segundos;
+    if (tempoRestanteEvento <= 0.0f) {
+        cancelarEvento();
+    }
+}
+
 void Ambiente::aumentarConsciencia(float quantidade) {
     consciencia += quantidade;
     if (consciencia > conscienciaMaxima) {

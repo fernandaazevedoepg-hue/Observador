@@ -3,7 +3,7 @@
 #include <cstdlib>
 
 Populacao::Populacao() 
-    : totalNascimentos(0), totalMortes(0), geracao(0), populacaoMaxima(200) {}
+    : totalNascimentos(0), totalMortes(0), geracao(0), populacaoMaxima(60) {}
 
 Populacao::~Populacao() {
     limpar();
@@ -84,6 +84,47 @@ void Populacao::atualizar(float deltaTime, const Ambiente& ambiente) {
     
     // Remover mortos
     removerMortos();
+
+    // Se a população zerar, reinicia com um "seed" mínimo (1 Planta + 1 Reagente)
+    // para evitar softlock quando o jogador elimina todos.
+    //
+    // Observação: este projeto usa TipoCategoria (Organismo.hpp). Não existe "CategoriaOrganismo".
+    if (organismos.empty()) {
+        ZonaPlaneta zona = ambiente.getZona();
+
+        auto gerarSeed = [&](TipoOrganismo tipo) {
+            // posição orbital coerente com a zona
+            float angulo = (float)(GetRandomValue(0, 359) * DEG2RAD);
+            float raio = 0.0f;
+            switch (zona) {
+                case ZonaPlaneta::NUCLEO:     raio = 50.0f  + GetRandomValue(0, 40);  break;
+                case ZonaPlaneta::HABITAVEL:  raio = 150.0f + GetRandomValue(0, 60);  break;
+                case ZonaPlaneta::PERIFERIA:  raio = 270.0f + GetRandomValue(0, 80);  break;
+            }
+            organismos.push_back(std::make_unique<Organismo>(tipo, zona, angulo, raio));
+            totalNascimentos++;
+        };
+
+        // 1 Planta + 1 Reagente, por zona
+        TipoOrganismo planta = TipoOrganismo::LUMIVINE;
+        TipoOrganismo reagente = TipoOrganismo::ORBITON;
+        switch (zona) {
+            case ZonaPlaneta::NUCLEO:
+                planta = (GetRandomValue(0, 1) == 0) ? TipoOrganismo::PYROSYNTH : TipoOrganismo::RUBRAFLORA;
+                reagente = (GetRandomValue(0, 1) == 0) ? TipoOrganismo::IGNIVAR : TipoOrganismo::VOLTREX;
+                break;
+            case ZonaPlaneta::HABITAVEL:
+                planta = (GetRandomValue(0, 1) == 0) ? TipoOrganismo::LUMIVINE : TipoOrganismo::AEROFLORA;
+                reagente = (GetRandomValue(0, 1) == 0) ? TipoOrganismo::ORBITON : TipoOrganismo::SYNAPSEX;
+                break;
+            case ZonaPlaneta::PERIFERIA:
+                planta = (GetRandomValue(0, 1) == 0) ? TipoOrganismo::CRYOMOSS : TipoOrganismo::GELIBLOOM;
+                reagente = (GetRandomValue(0, 1) == 0) ? TipoOrganismo::NULLWALKER : TipoOrganismo::HUSKLING;
+                break;
+        }
+        gerarSeed(planta);
+        gerarSeed(reagente);
+    }
 }
 
 int Populacao::contarPorZona(ZonaPlaneta zona) const {
@@ -201,4 +242,15 @@ TipoOrganismo Populacao::getOrganismoAleatorio(ZonaPlaneta zona) const {
         }
     }
     return TipoOrganismo::LUMIVINE;
+}
+void Populacao::removerAleatorios(int quantidade) {
+    int removidos = 0;
+    for (auto& org : organismos) {
+        if (removidos >= quantidade) break;
+        if (org->isVivo()) {
+            org->setVivo(false);
+            removidos++;
+        }
+    }
+    removerMortos();
 }

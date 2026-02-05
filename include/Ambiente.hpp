@@ -61,6 +61,8 @@ public:
     void atualizar(float deltaTime);
     void ativarEvento(TipoEvento evento, float duracao);
     void cancelarEvento();
+    // Reduz o tempo restante do evento atual (usado por missões/ações do jogador)
+    void reduzirTempoEvento(float segundos);
     void aumentarConsciencia(float quantidade);
     bool conscienciaCompleta() const;
     
